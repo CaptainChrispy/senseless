@@ -1,0 +1,470 @@
+export class Maze {
+  constructor(width = 10, height = 10, biome = 'DUNGEON') {
+    this.width = width;
+    this.height = height;
+    this.biome = biome;
+    this.cells = this.initializeCells();
+    this.startPosition = { x: 1, y: 1 };
+    this.exitPosition = { x: width - 2, y: height - 2 };
+    this.doors = new Map(); // key: door id, value: { x1, y1, x2, y2, isOpen, openProgress }
+  }
+
+  initializeCells() {
+    const cells = [];
+    for (let y = 0; y < this.height; y++) {
+      cells[y] = [];
+      for (let x = 0; x < this.width; x++) {
+        if (x === 0 || y === 0 || x === this.width - 1 || y === this.height - 1) {
+          cells[y][x] = 1; // Wall
+        } else {
+          cells[y][x] = 0; // Empty space
+        }
+      }
+    }
+    return cells;
+  }
+
+  isWall(x, y) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return true; // Out of bounds = wall
+    }
+    return this.cells[y][x] === 1;
+  }
+
+  canMoveTo(x, y) {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+      return false;
+    }
+    return this.cells[y][x] === 0;
+  }
+  
+  getDoorKey(x1, y1, x2, y2) {
+    if (x1 > x2 || (x1 === x2 && y1 > y2)) {
+      [x1, y1, x2, y2] = [x2, y2, x1, y1];
+    }
+    return `${x1},${y1},${x2},${y2}`;
+  }
+  
+  addDoor(x1, y1, x2, y2) {
+    const key = this.getDoorKey(x1, y1, x2, y2);
+    this.doors.set(key, { 
+      x1: Math.min(x1, x2), 
+      y1: Math.min(y1, y2), 
+      x2: Math.max(x1, x2), 
+      y2: Math.max(y1, y2),
+      isOpen: false,
+      openProgress: 0 // 0 = closed, 1 = fully open
+    });
+  }
+  
+  removeDoor(x1, y1, x2, y2) {
+    const key = this.getDoorKey(x1, y1, x2, y2);
+    this.doors.delete(key);
+  }
+  
+  hasDoor(x1, y1, x2, y2) {
+    const key = this.getDoorKey(x1, y1, x2, y2);
+    return this.doors.has(key);
+  }
+  
+  getDoor(x1, y1, x2, y2) {
+    const key = this.getDoorKey(x1, y1, x2, y2);
+    return this.doors.get(key);
+  }
+  
+  openDoor(x1, y1, x2, y2) {
+    const door = this.getDoor(x1, y1, x2, y2);
+    if (door && !door.isOpen) {
+      door.isOpen = true;
+      door.openProgress = 0;
+    }
+  }
+  
+  updateDoors(deltaTime) {
+    const doorSpeed = 3;
+    for (let door of this.doors.values()) {
+      if (door.isOpen && door.openProgress < 1) {
+        door.openProgress = Math.min(1, door.openProgress + deltaTime * doorSpeed);
+      }
+    }
+  }
+
+  addWall(x, y) {
+    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      this.cells[y][x] = 1;
+    }
+  }
+
+  removeWall(x, y) {
+    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+      this.cells[y][x] = 0;
+    }
+  }
+
+  toJSON() {
+    const doorsArray = Array.from(this.doors.entries()).map(([key, door]) => ({
+      key,
+      ...door
+    }));
+    
+    return {
+      width: this.width,
+      height: this.height,
+      biome: this.biome,
+      cells: this.cells,
+      startPosition: this.startPosition,
+      exitPosition: this.exitPosition,
+      doors: doorsArray
+    };
+  }
+
+  static fromJSON(data) {
+    const maze = new Maze(data.width, data.height, data.biome || 'DUNGEON');
+    maze.cells = data.cells;
+    maze.startPosition = data.startPosition || { x: 1, y: 1 };
+    maze.exitPosition = data.exitPosition || { x: data.width - 2, y: data.height - 2 };
+    
+    if (data.doors) {
+      maze.doors = new Map();
+      data.doors.forEach(doorData => {
+        maze.doors.set(doorData.key, {
+          x1: doorData.x1,
+          y1: doorData.y1,
+          x2: doorData.x2,
+          y2: doorData.y2,
+          isOpen: false,
+          openProgress: 0
+        });
+      });
+    }
+    
+    return maze;
+  }
+}
+
+// Player class
+export class Player {
+  constructor(x = 1, y = 1, direction = 0) {
+    this.x = Math.floor(x) + 0.5;
+    this.y = Math.floor(y) + 0.5;
+    this.direction = Math.floor(direction); // 0=North, 1=East, 2=South, 3=West
+    this.level = 1;
+    this.hp = 100;
+    this.maxHp = 100;
+    this.mp = 50;
+    this.maxMp = 50;
+    
+    this.targetX = this.x;
+    this.targetY = this.y;
+    this.targetDirection = this.direction;
+    this.isMoving = false;
+    this.isTurning = false;
+    this.turnStartTime = 0;
+    this.moveSpeed = 6;
+    this.turnSpeed = 8;
+    this.lastUpdateTime = Date.now();
+    
+    // Bump animation properties
+    this.isBumping = false;
+    this.bumpProgress = 0;
+    this.bumpDistance = 0.1;
+    
+    // Door interaction
+    this.isWaitingForDoor = false;
+    this.doorWaitProgress = 0;
+  }
+
+  turnLeft() {
+    this.direction = (this.direction + 3) % 4;
+  }
+
+  turnRight() {
+    this.direction = (this.direction + 1) % 4;
+  }
+
+  getForwardPosition() {
+    // Fixed direction mapping: 0=North(-Y), 1=East(+X), 2=South(+Y), 3=West(-X)
+    const dx = [0, 1, 0, -1][this.direction];
+    const dy = [-1, 0, 1, 0][this.direction];
+    return { x: Math.floor(this.x) + dx, y: Math.floor(this.y) + dy };
+  }
+
+  moveForward(maze) {
+    const newPos = this.getForwardPosition();
+    if (maze.canMoveTo(newPos.x, newPos.y)) {
+      this.x = newPos.x + 0.5;
+      this.y = newPos.y + 0.5;
+      return true;
+    }
+    return false;
+  }
+
+  moveBackward(maze) {
+    const dx = [0, -1, 0, 1][this.direction];
+    const dy = [1, 0, -1, 0][this.direction];
+    const newPos = { x: Math.floor(this.x) + dx, y: Math.floor(this.y) + dy };
+    if (maze.canMoveTo(newPos.x, newPos.y)) {
+      this.x = newPos.x + 0.5;
+      this.y = newPos.y + 0.5;
+      return true;
+    }
+    return false;
+  }
+
+  startMoveForward(maze) {
+    if (this.isMoving || this.isTurning || this.isWaitingForDoor) return false;
+    
+    const dx = [0, 1, 0, -1][this.direction];
+    const dy = [-1, 0, 1, 0][this.direction];
+    const currentGridX = Math.floor(this.x);
+    const currentGridY = Math.floor(this.y);
+    const newGridX = currentGridX + dx;
+    const newGridY = currentGridY + dy;
+    
+    if (maze.hasDoor(currentGridX, currentGridY, newGridX, newGridY)) {
+      const door = maze.getDoor(currentGridX, currentGridY, newGridX, newGridY);
+      if (!door.isOpen) {
+        maze.openDoor(currentGridX, currentGridY, newGridX, newGridY);
+        this.isWaitingForDoor = true;
+        this.doorWaitProgress = 0;
+        return true;
+      }
+    }
+    
+    if (maze.canMoveTo(newGridX, newGridY)) {
+      this.targetX = newGridX + 0.5;
+      this.targetY = newGridY + 0.5;
+      this.isMoving = true;
+      this.lastUpdateTime = Date.now();
+      return true;
+    }
+    return false;
+  }
+
+  startMoveBackward(maze) {
+    if (this.isMoving || this.isTurning || this.isWaitingForDoor) return false;
+    
+    const dx = [0, -1, 0, 1][this.direction];
+    const dy = [1, 0, -1, 0][this.direction];
+    const currentGridX = Math.floor(this.x);
+    const currentGridY = Math.floor(this.y);
+    const newGridX = currentGridX + dx;
+    const newGridY = currentGridY + dy;
+    
+    if (maze.hasDoor(currentGridX, currentGridY, newGridX, newGridY)) {
+      const door = maze.getDoor(currentGridX, currentGridY, newGridX, newGridY);
+      if (!door.isOpen) {
+        maze.openDoor(currentGridX, currentGridY, newGridX, newGridY);
+        this.isWaitingForDoor = true;
+        this.doorWaitProgress = 0;
+        return true; 
+      }
+    }
+    
+    if (maze.canMoveTo(newGridX, newGridY)) {
+      this.targetX = newGridX + 0.5;
+      this.targetY = newGridY + 0.5;
+      this.isMoving = true;
+      this.lastUpdateTime = Date.now();
+      return true;
+    }
+    return false;
+  }
+
+  startTurnLeft() {
+    if (this.isMoving || this.isTurning) return false;
+    
+    this.direction = Math.round(this.direction) % 4;
+    if (this.direction < 0) this.direction += 4;
+    
+    this.targetDirection = (this.direction + 3) % 4;
+    this.isTurning = true;
+    this.turnStartTime = Date.now();
+    this.lastUpdateTime = Date.now();
+    return true;
+  }
+
+  startTurnRight() {
+    if (this.isMoving || this.isTurning) return false;
+    
+    this.direction = Math.round(this.direction) % 4;
+    if (this.direction < 0) this.direction += 4;
+    
+    this.targetDirection = (this.direction + 1) % 4;
+    this.isTurning = true;
+    this.turnStartTime = Date.now();
+    this.lastUpdateTime = Date.now();
+    return true;
+  }
+  
+  startTurnAround() {
+    if (this.isMoving || this.isTurning) return false;
+    
+    this.direction = Math.round(this.direction) % 4;
+    if (this.direction < 0) this.direction += 4;
+    
+    this.targetDirection = (this.direction + 2) % 4;
+    this.isTurning = true;
+    this.turnStartTime = Date.now();
+    this.lastUpdateTime = Date.now();
+    return true;
+  }
+  
+  startBump() {
+    if (this.isMoving || this.isTurning || this.isBumping) return false;
+    
+    this.isBumping = true;
+    this.bumpProgress = 0;
+    this.lastUpdateTime = Date.now();
+    return true;
+  }
+
+  update(maze = null) {
+    const currentTime = Date.now();
+    const deltaTime = (currentTime - this.lastUpdateTime) / 1000;
+    this.lastUpdateTime = currentTime;
+    
+    if (this.isWaitingForDoor && maze) {
+      this.doorWaitProgress += deltaTime;
+      
+      if (this.doorWaitProgress >= 0.33) {
+        this.isWaitingForDoor = false;
+        this.doorWaitProgress = 0;
+        
+        const dx = [0, 1, 0, -1][this.direction];
+        const dy = [-1, 0, 1, 0][this.direction];
+        const newGridX = Math.floor(this.x) + dx;
+        const newGridY = Math.floor(this.y) + dy;
+        
+        if (maze.canMoveTo(newGridX, newGridY)) {
+          this.targetX = newGridX + 0.5;
+          this.targetY = newGridY + 0.5;
+          this.isMoving = true;
+        }
+      }
+    }
+
+    if (this.isMoving) {
+      const moveProgress = deltaTime * this.moveSpeed;
+      
+      const dx = this.targetX - this.x;
+      const dy = this.targetY - this.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance <= moveProgress || distance < 0.01) {
+        this.x = this.targetX;
+        this.y = this.targetY;
+        this.isMoving = false;
+        
+        const gridX = Math.floor(this.x);
+        const gridY = Math.floor(this.y);
+        this.x = gridX + 0.5;
+        this.y = gridY + 0.5;
+      } else {
+        const moveRatio = moveProgress / distance;
+        this.x += dx * moveRatio;
+        this.y += dy * moveRatio;
+      }
+    }
+
+    if (this.isTurning) {
+      const turnProgress = deltaTime * this.turnSpeed;
+
+      let angleDiff = this.targetDirection - this.direction;
+      if (angleDiff > 2) angleDiff -= 4;
+      if (angleDiff < -2) angleDiff += 4;
+
+      const snapThreshold = Math.max(0.15, turnProgress * 3.0);
+      
+      if (Math.abs(angleDiff) <= snapThreshold) {
+        this.direction = Math.round(this.targetDirection);
+        this.isTurning = false;
+        
+        this.direction = this.direction % 4;
+        if (this.direction < 0) this.direction += 4;
+        
+        this.direction = Math.floor(this.direction + 0.5);
+      } else {
+        const turnDirection = angleDiff > 0 ? 1 : -1;
+        this.direction += turnDirection * turnProgress;
+        
+        while (this.direction < 0) this.direction += 4;
+        while (this.direction >= 4) this.direction -= 4;
+        
+        const finalCheck = this.targetDirection - this.direction;
+        if (Math.abs(finalCheck) < 0.01) {
+          this.direction = Math.round(this.targetDirection);
+          this.isTurning = false;
+          this.direction = this.direction % 4;
+          if (this.direction < 0) this.direction += 4;
+        }
+      }
+    }
+    
+    if (this.isBumping) {
+      const bumpSpeed = 10;
+      this.bumpProgress += deltaTime * bumpSpeed;
+      
+      if (this.bumpProgress >= 1.0) {
+        this.isBumping = false;
+        this.bumpProgress = 0;
+      }
+    }
+
+    if (!this.isTurning) {
+      // Force to nearest cardinal direction
+      this.direction = Math.round(this.direction);
+      
+      // Ensure in range [0, 3]
+      this.direction = this.direction % 4;
+      if (this.direction < 0) this.direction += 4;
+      
+      if (this.direction !== 0 && this.direction !== 1 && this.direction !== 2 && this.direction !== 3) {
+        console.error('Direction corrupted, forcing to 0:', this.direction);
+        this.direction = 0;
+      }
+    }
+
+    return this.isMoving || this.isTurning || this.isBumping || this.isWaitingForDoor;
+  }
+  
+  getBumpOffset() {
+    if (!this.isBumping) return 0;
+    
+    const offset = Math.sin(this.bumpProgress * Math.PI) * this.bumpDistance;
+    return offset;
+  }
+
+  canAct() {
+    return !this.isMoving && !this.isTurning && !this.isBumping && !this.isWaitingForDoor;
+  }
+}
+
+export class BattleSystem {
+  constructor() {
+    this.encounterRate = 0.03;
+    this.stepsSinceLastBattle = 0;
+  }
+
+  checkForBattle() {
+    this.stepsSinceLastBattle++;
+    if (this.stepsSinceLastBattle < 5) return false;
+    
+    const chance = Math.random();
+    if (chance < this.encounterRate) {
+      this.stepsSinceLastBattle = 0;
+      return true;
+    }
+    return false;
+  }
+
+  generateEnemy() {
+    const enemies = [
+      { name: 'Shadow', hp: 30, attack: 15 },
+      { name: 'Goblin', hp: 45, attack: 20 },
+      { name: 'Skeleton', hp: 60, attack: 25 },
+      { name: 'Orc', hp: 80, attack: 30 }
+    ];
+    return enemies[Math.floor(Math.random() * enemies.length)];
+  }
+}
