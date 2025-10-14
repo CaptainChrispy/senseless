@@ -9,7 +9,8 @@ export class MazeRenderer {
     this.textureManager = textureManager;
     
     this.fov = Math.PI / 3;
-    this.viewDistance = 8;
+    this.viewDistance = 5;
+    this.fogStart = 3;
     this.wallHeight = 0.8;
     
     this.currentBiome = 'DUNGEON';
@@ -136,9 +137,9 @@ export class MazeRenderer {
     
     let hit = false;
     let side; // 0=x-side, 1=y-side
-    let maxSteps = Math.max(maze.width, maze.height) * 2;
+    let maxSteps = Math.ceil(this.viewDistance) * 2;
     
-    // DDA algorithm with safety check
+    // DDA algorithm with distance-based early exit
     while (!hit && maxSteps > 0) {
       const prevMapX = mapX;
       const prevMapY = mapY;
@@ -151,6 +152,17 @@ export class MazeRenderer {
         sideDistY += deltaDistY;
         mapY += stepY;
         side = 1;
+      }
+      
+      let currentDist;
+      if (side === 0) {
+        currentDist = Math.abs((mapX - player.x + (1 - stepX) / 2) / safeDirX);
+      } else {
+        currentDist = Math.abs((mapY - player.y + (1 - stepY) / 2) / safeDirY);
+      }
+      
+      if (currentDist > this.viewDistance) {
+        break;
       }
       
       if (maze.isWall(mapX, mapY)) {
@@ -201,6 +213,11 @@ export class MazeRenderer {
     const drawStart = Math.max(0, Math.floor(-lineHeight / 2 + this.height / 2));
     const drawEnd = Math.min(this.height, Math.ceil(lineHeight / 2 + this.height / 2));
     
+    let fogIntensity = 0;
+    if (distance > this.fogStart) {
+      fogIntensity = Math.min(1, (distance - this.fogStart) / (this.viewDistance - this.fogStart));
+    }
+    
     if (this.wallTexture && this.wallTexture.complete) {
       const texWidth = this.wallTexture.width;
       const texHeight = this.wallTexture.height;
@@ -210,8 +227,10 @@ export class MazeRenderer {
       const brightness = side === 1 ? 0.6 : 1.0;
       
       this.ctx.save();
-      if (brightness < 1.0) {
-        this.ctx.globalAlpha = brightness;
+      
+      const finalAlpha = brightness * (1 - fogIntensity * 0.7);
+      if (finalAlpha < 1.0) {
+        this.ctx.globalAlpha = finalAlpha;
       }
 
       this.ctx.drawImage(
@@ -226,12 +245,32 @@ export class MazeRenderer {
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
         this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
       }
-
+      
+      if (fogIntensity > 0) {
+        const fogColor = this.colors.sky || '#111144';
+        this.ctx.fillStyle = fogColor;
+        this.ctx.globalAlpha = fogIntensity * 0.8;
+        this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+        this.ctx.globalAlpha = 1.0;
+      }
 
     } else {
       const color = side === 1 ? this.colors.wallDark : this.colors.wall;
       this.ctx.fillStyle = color;
+      
+      if (fogIntensity > 0) {
+        this.ctx.globalAlpha = 1 - fogIntensity * 0.7;
+      }
+      
       this.ctx.fillRect(x, drawStart, 1, Math.max(1, drawEnd - drawStart));
+      
+      if (fogIntensity > 0) {
+        const fogColor = this.colors.sky || '#111144';
+        this.ctx.fillStyle = fogColor;
+        this.ctx.globalAlpha = fogIntensity * 0.8;
+        this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
+        this.ctx.globalAlpha = 1.0;
+      }
     }
   }
 
