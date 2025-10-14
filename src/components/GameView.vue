@@ -56,6 +56,19 @@
           <p v-if="player.isMoving || player.isTurning" class="moving-indicator">
             {{ player.isMoving ? 'Moving...' : 'Turning...' }}
           </p>
+          
+          <div class="fov-control">
+            <label for="fovSlider">FOV: {{ fovDegrees }}°</label>
+            <input 
+              id="fovSlider"
+              type="range" 
+              min="30" 
+              max="120" 
+              v-model.number="fovDegrees"
+              @input="updateFOV"
+              class="fov-slider"
+            />
+          </div>
         </div>
         
         <div class="admin-controls">
@@ -116,6 +129,7 @@ export default {
   const maze = ref(new Maze(15, 15))
   const player = reactive(new Player(1, 1, 0)) // Start at exact integer position
     const stepCount = ref(0)
+    const fovDegrees = ref(60)
     
     // Battle system
     const battleSystem = new BattleSystem()
@@ -155,6 +169,8 @@ export default {
       // Initialize renderers
       mazeRenderer = new MazeRenderer(mainCanvas.value, textureManager)
       minimapRenderer = new MinimapRenderer(minimapCanvas.value)
+      
+      mazeRenderer.fov = (fovDegrees.value * Math.PI) / 180
       
       render()
     }
@@ -206,6 +222,13 @@ export default {
       if (battleState.value.inBattle || !player.canAct()) return
       
       player.startTurnAround()
+    }
+    
+    const updateFOV = () => {
+      if (mazeRenderer) {
+        mazeRenderer.fov = (fovDegrees.value * Math.PI) / 180
+        render()
+      }
     }
     
     const checkForBattle = () => {
@@ -380,11 +403,13 @@ export default {
       player,
       stepCount,
       battleState,
+      fovDegrees,
       moveForward,
       moveBackward,
       turnLeft,
       turnRight,
       turnAround,
+      updateFOV,
       attack,
       defend,
       tryEscape,
@@ -488,6 +513,49 @@ export default {
 
 .game-info p {
   margin: 5px 0;
+}
+
+.fov-control {
+  margin: 15px 0;
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 5px;
+  background-color: #2a2a2a;
+}
+
+.fov-control label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #ccc;
+}
+
+.fov-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: #555;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.fov-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+}
+
+.fov-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  border: none;
 }
 
 .admin-btn {

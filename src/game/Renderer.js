@@ -86,8 +86,10 @@ export class MazeRenderer {
     };
     
     for (let x = 0; x < rayCount; x++) {
+      // Convert screen x to camera space (-1 to 1)
       const cameraX = 2 * x / rayCount - 1;
       const baseAngle = renderPlayer.direction * Math.PI / 2;
+      // Calculate ray angle based on FOV and camera position
       const rayAngle = baseAngle + Math.atan(cameraX * Math.tan(this.fov / 2));
       
       const rayResult = this.castRay(maze, renderPlayer, rayAngle);
@@ -203,7 +205,8 @@ export class MazeRenderer {
   }
 
   drawWallSlice(x, distance, side, wallX, door = null) {
-    const lineHeight = Math.max(1, this.height / Math.max(0.1, distance));
+    const projectionDistance = (this.height / 2) / Math.tan(this.fov / 2);
+    const lineHeight = Math.max(1, projectionDistance * this.wallHeight / Math.max(0.1, distance));
     const drawStart = Math.max(0, Math.floor(-lineHeight / 2 + this.height / 2));
     const drawEnd = Math.min(this.height, Math.ceil(lineHeight / 2 + this.height / 2));
     
@@ -255,22 +258,22 @@ export class MazeRenderer {
           
           if (wallX < 0.1) {
             this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
-          } 
+          }
           if (wallX > 0.9) {
             this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
           }
           
           if (doorVisibility > 0.3) {
             this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-            this.ctx.lineWidth = 1;
+              this.ctx.lineWidth = 1;
             const plankCount = 5;
             for (let i = 1; i < plankCount; i++) {
               const y = drawStart + panelOffset + (doorHeight * (1 - openProgress) * i / plankCount);
               if (y >= drawStart && y <= drawEnd) {
-                this.ctx.beginPath();
+                  this.ctx.beginPath();
                 this.ctx.moveTo(x, y);
                 this.ctx.lineTo(x + 1, y);
-                this.ctx.stroke();
+                  this.ctx.stroke();
               }
             }
           }
