@@ -155,6 +155,20 @@ export const BiomeTextures = {
       ceiling: '#2a4a2a',
       sky: '#1a3a2a'
     }
+  },
+  
+  OFFICE: {
+    name: 'Office',
+    wall: 'office_wall',
+    floor: 'office_floor',
+    ceiling: 'office_ceiling',
+    colors: {
+      wall: '#e8e8e8',
+      wallDark: '#c0c0c0',
+      floor: '#d0d0d0',
+      ceiling: '#f0f0f0',
+      sky: '#e0e0e0'
+    }
   }
 };
 

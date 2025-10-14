@@ -69,6 +69,24 @@
               class="fov-slider"
             />
           </div>
+          
+          <div class="biome-control">
+            <label for="biomeSelect">Biome:</label>
+            <select 
+              id="biomeSelect"
+              v-model="currentBiome"
+              @change="changeBiome"
+              class="biome-select"
+            >
+              <option value="DUNGEON">Dungeon</option>
+              <option value="CAVE">Cave</option>
+              <option value="TEMPLE">Temple</option>
+              <option value="ICE_CAVERN">Ice Cavern</option>
+              <option value="HELL">Hell</option>
+              <option value="FOREST">Forest</option>
+              <option value="OFFICE">Office</option>
+            </select>
+          </div>
         </div>
         
         <div class="admin-controls">
@@ -130,6 +148,7 @@ export default {
   const player = reactive(new Player(1, 1, 0)) // Start at exact integer position
     const stepCount = ref(0)
     const fovDegrees = ref(60)
+    const currentBiome = ref('DUNGEON')
     
     // Battle system
     const battleSystem = new BattleSystem()
@@ -144,10 +163,55 @@ export default {
     let mazeRenderer = null
     let minimapRenderer = null
     
-    const initializeGame = () => {
+    const initializeGame = async () => {
       // Initialize texture manager and generate default textures
       textureManager = new TextureManager()
       generateDefaultTextures(textureManager)
+      
+      // Load custom office wall texture
+      try {
+        await textureManager.loadTexture('office_wall', '/textures/office_wall.png')
+        console.log('Custom office wall texture loaded successfully!')
+      } catch (error) {
+        console.warn('Failed to load office wall texture, using procedural fallback:', error)
+        // Generate procedural office wall texture as fallback
+        textureManager.generateProceduralTexture('office_wall', 64, 64, (x, y) => {
+          // Office-like texture with panels/tiles
+          const panelSize = 16
+          const panelX = Math.floor(x / panelSize)
+          const panelY = Math.floor(y / panelSize)
+          const edgeX = x % panelSize
+          const edgeY = y % panelSize
+          
+          // Create panel borders
+          const isBorder = edgeX < 2 || edgeX > panelSize - 3 || edgeY < 2 || edgeY > panelSize - 3
+          const base = isBorder ? 200 : 240
+          const noise = (Math.random() - 0.5) * 10
+          
+          return { r: base + noise, g: base + noise, b: base + noise }
+        })
+      }
+      
+      // Generate office floor and ceiling textures
+      textureManager.generateProceduralTexture('office_floor', 64, 64, (x, y) => {
+        // Office carpet/tile pattern
+        const tileSize = 32
+        const tilePattern = (Math.floor(x / tileSize) + Math.floor(y / tileSize)) % 2 ? 5 : -5
+        const r = 180 + tilePattern
+        const g = 185 + tilePattern
+        const b = 190 + tilePattern
+        return { r, g, b }
+      })
+      
+      textureManager.generateProceduralTexture('office_ceiling', 64, 64, (x, y) => {
+        // Office ceiling tiles
+        const tileSize = 16
+        const edgeX = x % tileSize
+        const edgeY = y % tileSize
+        const isEdge = edgeX < 1 || edgeY < 1
+        const base = isEdge ? 220 : 245
+        return { r: base, g: base, b: base }
+      })
       
       // Add some walls to make the maze more interesting
       maze.value.addWall(3, 2)
@@ -227,6 +291,14 @@ export default {
     const updateFOV = () => {
       if (mazeRenderer) {
         mazeRenderer.fov = (fovDegrees.value * Math.PI) / 180
+        render()
+      }
+    }
+    
+    const changeBiome = () => {
+      if (maze.value && mazeRenderer) {
+        maze.value.biome = currentBiome.value
+        mazeRenderer.setBiome(currentBiome.value)
         render()
       }
     }
@@ -404,12 +476,14 @@ export default {
       stepCount,
       battleState,
       fovDegrees,
+      currentBiome,
       moveForward,
       moveBackward,
       turnLeft,
       turnRight,
       turnAround,
       updateFOV,
+      changeBiome,
       attack,
       defend,
       tryEscape,
@@ -537,6 +611,7 @@ export default {
   background: #555;
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
 }
 
 .fov-slider::-webkit-slider-thumb {
@@ -556,6 +631,36 @@ export default {
   background: #4CAF50;
   cursor: pointer;
   border: none;
+}
+
+.biome-control {
+  margin: 15px 0;
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 5px;
+  background-color: #2a2a2a;
+}
+
+.biome-control label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #ccc;
+}
+
+.biome-select {
+  width: 100%;
+  padding: 8px;
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #555;
+  border-radius: 3px;
+  font-family: inherit;
+}
+
+.biome-select:focus {
+  outline: none;
+  border-color: #4CAF50;
 }
 
 .admin-btn {
