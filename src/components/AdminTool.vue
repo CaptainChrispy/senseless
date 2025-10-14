@@ -56,20 +56,7 @@
                 value="empty"
               /> Remove Walls
             </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="door"
-              /> Add Door (Click edge between cells)
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="removedoor"
-              /> Remove Door
-            </label>
+
             <label>
               <input 
                 v-model="editMode" 
@@ -159,13 +146,7 @@ export default {
       currentMaze.value.exitPosition = { ...props.maze.exitPosition }
       currentMaze.value.biome = props.maze.biome || 'DUNGEON'
       
-      // Copy doors
-      currentMaze.value.doors = new Map()
-      if (props.maze.doors) {
-        for (let [key, door] of props.maze.doors.entries()) {
-          currentMaze.value.doors.set(key, { ...door })
-        }
-      }
+
       
       selectedBiome.value = currentMaze.value.biome
       
@@ -205,30 +186,7 @@ export default {
         }
       }
       
-      // Draw doors as thick brown lines on edges
-      ctx.strokeStyle = '#8B4513'
-      ctx.lineWidth = 4
-      for (let [key, door] of currentMaze.value.doors.entries()) {
-        const { x1, y1, x2, y2 } = door
-        
-        if (x1 === x2) {
-          // Vertical door
-          const x = x1 * cellSize + cellSize
-          const y = Math.min(y1, y2) * cellSize + cellSize
-          ctx.beginPath()
-          ctx.moveTo(x - cellSize * 0.4, y)
-          ctx.lineTo(x + cellSize * 0.4, y)
-          ctx.stroke()
-        } else {
-          // Horizontal door
-          const x = Math.min(x1, x2) * cellSize + cellSize
-          const y = y1 * cellSize + cellSize
-          ctx.beginPath()
-          ctx.moveTo(x, y - cellSize * 0.4)
-          ctx.lineTo(x, y + cellSize * 0.4)
-          ctx.stroke()
-        }
-      }
+
     }
     
     const handleCanvasClick = (event) => {
@@ -236,50 +194,7 @@ export default {
       const clickX = event.clientX - rect.left
       const clickY = event.clientY - rect.top
       
-      if (editMode.value === 'door' || editMode.value === 'removedoor') {
-        // Door mode: detect clicks on edges between cells
-        const threshold = cellSize * 0.3
-        
-        // Check all possible door positions
-        for (let y = 0; y < currentMaze.value.height; y++) {
-          for (let x = 0; x < currentMaze.value.width; x++) {
-            // Check horizontal edge (between this cell and cell below)
-            if (y < currentMaze.value.height - 1) {
-              const edgeX = x * cellSize + cellSize / 2
-              const edgeY = (y + 1) * cellSize
-              const dist = Math.sqrt(Math.pow(clickX - edgeX, 2) + Math.pow(clickY - edgeY, 2))
-              
-              if (dist < threshold) {
-                if (editMode.value === 'door') {
-                  currentMaze.value.addDoor(x, y, x, y + 1)
-                } else {
-                  currentMaze.value.removeDoor(x, y, x, y + 1)
-                }
-                renderEditor()
-                return
-              }
-            }
-            
-            // Check vertical edge (between this cell and cell to the right)
-            if (x < currentMaze.value.width - 1) {
-              const edgeX = (x + 1) * cellSize
-              const edgeY = y * cellSize + cellSize / 2
-              const dist = Math.sqrt(Math.pow(clickX - edgeX, 2) + Math.pow(clickY - edgeY, 2))
-              
-              if (dist < threshold) {
-                if (editMode.value === 'door') {
-                  currentMaze.value.addDoor(x, y, x + 1, y)
-                } else {
-                  currentMaze.value.removeDoor(x, y, x + 1, y)
-                }
-                renderEditor()
-                return
-              }
-            }
-          }
-        }
-        return
-      }
+
       
       // Normal cell-based editing
       const x = Math.floor(clickX / cellSize)

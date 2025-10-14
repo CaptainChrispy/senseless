@@ -6,7 +6,6 @@ export class Maze {
     this.cells = this.initializeCells();
     this.startPosition = { x: 1, y: 1 };
     this.exitPosition = { x: width - 2, y: height - 2 };
-    this.doors = new Map(); // key: door id, value: { x1, y1, x2, y2, isOpen, openProgress }
     this.npcs = new Map(); // key: "x,y", value: { x, y, type, name, image, visible }
   }
 
@@ -38,58 +37,6 @@ export class Maze {
     }
     return this.cells[y][x] === 0;
   }
-  
-  getDoorKey(x1, y1, x2, y2) {
-    if (x1 > x2 || (x1 === x2 && y1 > y2)) {
-      [x1, y1, x2, y2] = [x2, y2, x1, y1];
-    }
-    return `${x1},${y1},${x2},${y2}`;
-  }
-  
-  addDoor(x1, y1, x2, y2) {
-    const key = this.getDoorKey(x1, y1, x2, y2);
-    this.doors.set(key, { 
-      x1: Math.min(x1, x2), 
-      y1: Math.min(y1, y2), 
-      x2: Math.max(x1, x2), 
-      y2: Math.max(y1, y2),
-      isOpen: false,
-      openProgress: 0 // 0 = closed, 1 = fully open
-    });
-  }
-  
-  removeDoor(x1, y1, x2, y2) {
-    const key = this.getDoorKey(x1, y1, x2, y2);
-    this.doors.delete(key);
-  }
-  
-  hasDoor(x1, y1, x2, y2) {
-    const key = this.getDoorKey(x1, y1, x2, y2);
-    return this.doors.has(key);
-  }
-  
-  getDoor(x1, y1, x2, y2) {
-    const key = this.getDoorKey(x1, y1, x2, y2);
-    return this.doors.get(key);
-  }
-  
-  openDoor(x1, y1, x2, y2) {
-    const door = this.getDoor(x1, y1, x2, y2);
-    if (door && !door.isOpen) {
-      door.isOpen = true;
-      door.openProgress = 0;
-    }
-  }
-  
-  updateDoors(deltaTime) {
-    const doorSpeed = 3;
-    for (let door of this.doors.values()) {
-      if (door.isOpen && door.openProgress < 1) {
-        door.openProgress = Math.min(1, door.openProgress + deltaTime * doorSpeed);
-      }
-    }
-  }
-
   addWall(x, y) {
     if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
       this.cells[y][x] = 1;
@@ -151,11 +98,6 @@ export class Maze {
   }
 
   toJSON() {
-    const doorsArray = Array.from(this.doors.entries()).map(([key, door]) => ({
-      key,
-      ...door
-    }));
-    
     const npcsArray = Array.from(this.npcs.entries()).map(([key, npc]) => ({
       key,
       ...npc
@@ -168,7 +110,6 @@ export class Maze {
       cells: this.cells,
       startPosition: this.startPosition,
       exitPosition: this.exitPosition,
-      doors: doorsArray,
       npcs: npcsArray
     };
   }
@@ -178,22 +119,6 @@ export class Maze {
     maze.cells = data.cells;
     maze.startPosition = data.startPosition || { x: 1, y: 1 };
     maze.exitPosition = data.exitPosition || { x: data.width - 2, y: data.height - 2 };
-    
-    if (data.doors) {
-      maze.doors = new Map();
-      data.doors.forEach(doorData => {
-        maze.doors.set(doorData.key, {
-          x1: doorData.x1,
-          y1: doorData.y1,
-          x2: doorData.x2,
-          y2: doorData.y2,
-          isOpen: false,
-          openProgress: 0,
-          closeTimer: 0,
-          isClosing: false
-        });
-      });
-    }
     
     if (data.npcs) {
       maze.npcs = new Map();
@@ -240,10 +165,6 @@ export class Player {
     this.isBumping = false;
     this.bumpProgress = 0;
     this.bumpDistance = 0.1;
-    
-    // Door interaction
-    this.isWaitingForDoor = false;
-    this.doorWaitProgress = 0;
   }
 
   turnLeft() {
@@ -284,7 +205,7 @@ export class Player {
   }
 
   startMoveForward(maze) {
-    if (this.isMoving || this.isTurning || this.isWaitingForDoor) return false;
+    if (this.isMoving || this.isTurning) return false;
     
     const dx = [0, 1, 0, -1][this.direction];
     const dy = [-1, 0, 1, 0][this.direction];
@@ -292,16 +213,6 @@ export class Player {
     const currentGridY = Math.floor(this.y);
     const newGridX = currentGridX + dx;
     const newGridY = currentGridY + dy;
-    
-    if (maze.hasDoor(currentGridX, currentGridY, newGridX, newGridY)) {
-      const door = maze.getDoor(currentGridX, currentGridY, newGridX, newGridY);
-      if (!door.isOpen) {
-        maze.openDoor(currentGridX, currentGridY, newGridX, newGridY);
-        this.isWaitingForDoor = true;
-        this.doorWaitProgress = 0;
-        return true;
-      }
-    }
     
     if (maze.canMoveTo(newGridX, newGridY)) {
       this.targetX = newGridX + 0.5;
@@ -314,7 +225,7 @@ export class Player {
   }
 
   startMoveBackward(maze) {
-    if (this.isMoving || this.isTurning || this.isWaitingForDoor) return false;
+    if (this.isMoving || this.isTurning) return false;
     
     const dx = [0, -1, 0, 1][this.direction];
     const dy = [1, 0, -1, 0][this.direction];
@@ -322,16 +233,6 @@ export class Player {
     const currentGridY = Math.floor(this.y);
     const newGridX = currentGridX + dx;
     const newGridY = currentGridY + dy;
-    
-    if (maze.hasDoor(currentGridX, currentGridY, newGridX, newGridY)) {
-      const door = maze.getDoor(currentGridX, currentGridY, newGridX, newGridY);
-      if (!door.isOpen) {
-        maze.openDoor(currentGridX, currentGridY, newGridX, newGridY);
-        this.isWaitingForDoor = true;
-        this.doorWaitProgress = 0;
-        return true; 
-      }
-    }
     
     if (maze.canMoveTo(newGridX, newGridY)) {
       this.targetX = newGridX + 0.5;
@@ -396,26 +297,6 @@ export class Player {
     const deltaTime = (currentTime - this.lastUpdateTime) / 1000;
     this.lastUpdateTime = currentTime;
     
-    if (this.isWaitingForDoor && maze) {
-      this.doorWaitProgress += deltaTime;
-      
-      if (this.doorWaitProgress >= 0.33) {
-        this.isWaitingForDoor = false;
-        this.doorWaitProgress = 0;
-        
-        const dx = [0, 1, 0, -1][this.direction];
-        const dy = [-1, 0, 1, 0][this.direction];
-        const newGridX = Math.floor(this.x) + dx;
-        const newGridY = Math.floor(this.y) + dy;
-        
-        if (maze.canMoveTo(newGridX, newGridY)) {
-          this.targetX = newGridX + 0.5;
-          this.targetY = newGridY + 0.5;
-          this.isMoving = true;
-        }
-      }
-    }
-
     if (this.isMoving) {
       const moveProgress = deltaTime * this.moveSpeed;
       
@@ -501,7 +382,7 @@ export class Player {
       maze.updateNPCVisibility(this.x, this.y, this.direction);
     }
 
-    return this.isMoving || this.isTurning || this.isBumping || this.isWaitingForDoor;
+    return this.isMoving || this.isTurning || this.isBumping;
   }
   
   getBumpOffset() {
@@ -512,7 +393,7 @@ export class Player {
   }
 
   canAct() {
-    return !this.isMoving && !this.isTurning && !this.isBumping && !this.isWaitingForDoor;
+    return !this.isMoving && !this.isTurning && !this.isBumping;
   }
 }
 

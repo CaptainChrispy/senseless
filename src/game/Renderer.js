@@ -98,7 +98,7 @@ export class MazeRenderer {
       if (rayResult.hit) {
         const angleDiff = rayAngle - baseAngle;
         const correctedDistance = rayResult.distance * Math.cos(angleDiff);
-        this.drawWallSlice(x, correctedDistance, rayResult.side, rayResult.wallX, rayResult.door);
+        this.drawWallSlice(x, correctedDistance, rayResult.side, rayResult.wallX);
       }
     }
   }
@@ -135,7 +135,6 @@ export class MazeRenderer {
     }
     
     let hit = false;
-    let door = null;
     let side; // 0=x-side, 1=y-side
     let maxSteps = Math.max(maze.width, maze.height) * 2;
     
@@ -154,16 +153,7 @@ export class MazeRenderer {
         side = 1;
       }
       
-      if (maze.hasDoor(prevMapX, prevMapY, mapX, mapY)) {
-        door = maze.getDoor(prevMapX, prevMapY, mapX, mapY);
-        if (door && door.openProgress < 1.0) {
-          hit = true;
-          mapX = prevMapX;
-          mapY = prevMapY;
-        }
-      }
-      
-      if (!hit && maze.isWall(mapX, mapY)) {
+      if (maze.isWall(mapX, mapY)) {
         hit = true;
       }
       
@@ -177,7 +167,7 @@ export class MazeRenderer {
         distance: this.viewDistance,
         side: 0,
         wallX: 0,
-        door: null
+
       };
     }
     
@@ -201,11 +191,11 @@ export class MazeRenderer {
       distance: perpWallDist,
       side: side,
       wallX: wallX,
-      door: door
+
     };
   }
 
-  drawWallSlice(x, distance, side, wallX, door = null) {
+  drawWallSlice(x, distance, side, wallX) {
     const projectionDistance = (this.height / 2) / Math.tan(this.fov / 2);
     const lineHeight = Math.max(1, projectionDistance * this.wallHeight / Math.max(0.1, distance));
     const drawStart = Math.max(0, Math.floor(-lineHeight / 2 + this.height / 2));
@@ -237,51 +227,7 @@ export class MazeRenderer {
         this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
       }
 
-      if (door) {
-        const openProgress = door.openProgress || 0;
-        const doorVisibility = 1.0 - openProgress;
-        
-        if (doorVisibility > 0.01) {
-          this.ctx.save();
-          this.ctx.globalAlpha = doorVisibility;
 
-          this.ctx.fillStyle = '#5C3317';
-
-          const doorHeight = drawEnd - drawStart;
-          const panelOffset = openProgress * (doorHeight * 0.5); 
-          
-          if (doorVisibility > 0.5) {
-            this.ctx.fillRect(x, drawStart + panelOffset, 1, doorHeight * (1 - openProgress));
-          }
-          
-          const frameColor = '#3D2817';
-          this.ctx.fillStyle = frameColor;
-          
-          if (wallX < 0.1) {
-            this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
-          }
-          if (wallX > 0.9) {
-            this.ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
-          }
-          
-          if (doorVisibility > 0.3) {
-            this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
-              this.ctx.lineWidth = 1;
-            const plankCount = 5;
-            for (let i = 1; i < plankCount; i++) {
-              const y = drawStart + panelOffset + (doorHeight * (1 - openProgress) * i / plankCount);
-              if (y >= drawStart && y <= drawEnd) {
-                  this.ctx.beginPath();
-                this.ctx.moveTo(x, y);
-                this.ctx.lineTo(x + 1, y);
-                  this.ctx.stroke();
-              }
-            }
-          }
-          
-          this.ctx.restore();
-        }
-      }
     } else {
       const color = side === 1 ? this.colors.wallDark : this.colors.wall;
       this.ctx.fillStyle = color;
@@ -471,27 +417,7 @@ export class MinimapRenderer {
       this.ctx.stroke();
     }
     
-    this.ctx.strokeStyle = '#8B4513';
-    this.ctx.lineWidth = 3;
-    for (let [key, door] of maze.doors.entries()) {
-      const { x1, y1, x2, y2 } = door;
-      
-      if (x1 === x2) {
-        const x = (x1 + x2) * this.scale / 2 + this.scale / 2;
-        const y = Math.min(y1, y2) * this.scale + this.scale;
-        this.ctx.beginPath();
-        this.ctx.moveTo(x - this.scale * 0.3, y);
-        this.ctx.lineTo(x + this.scale * 0.3, y);
-        this.ctx.stroke();
-      } else {
-        const x = Math.min(x1, x2) * this.scale + this.scale;
-        const y = (y1 + y2) * this.scale / 2 + this.scale / 2;
-        this.ctx.beginPath();
-        this.ctx.moveTo(x, y - this.scale * 0.3);
-        this.ctx.lineTo(x, y + this.scale * 0.3);
-        this.ctx.stroke();
-      }
-    }
+
     
     if (maze.startPosition) {
       const startX = maze.startPosition.x * this.scale;

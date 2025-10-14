@@ -225,11 +225,7 @@ export default {
       maze.value.addWall(9, 4)
       maze.value.addWall(9, 5)
       
-      // Add some doors to demonstrate the new feature
-      // Doors are between cells, specified as (x1, y1, x2, y2)
-      maze.value.addDoor(3, 5, 3, 6)  // Door in wall between (3,5) and (3,6)
-      maze.value.addDoor(7, 6, 8, 6)  // Door in wall between (7,6) and (8,6)
-      maze.value.addDoor(2, 8, 3, 8)  // Door in wall between (2,8) and (3,8)
+
       
       try {
         await textureManager.loadTexture('astronaut', '/textures/astronaut.png')
@@ -431,12 +427,9 @@ export default {
     let animationFrameId = null
     
     const gameLoop = () => {
-      // Update maze (for door animations)
       const currentTime = Date.now();
       const deltaTime = (currentTime - (gameLoop.lastTime || currentTime)) / 1000;
       gameLoop.lastTime = currentTime;
-      
-      maze.value.updateDoors(deltaTime);
       
       // Snapshot state before update
       const prevX = player.x;
@@ -445,9 +438,7 @@ export default {
       const prevIsTurning = player.isTurning;
       const prevIsMoving = player.isMoving;
       const prevIsBumping = player.isBumping;
-      const prevIsWaitingForDoor = player.isWaitingForDoor;
-      
-      // Update player (pass maze for door interaction)
+      // Update player
       const stillUpdating = player.update(maze.value);
       
       const stateChanged = stillUpdating ||
@@ -456,8 +447,8 @@ export default {
         player.direction !== prevDirection ||
         player.isTurning !== prevIsTurning ||
         player.isMoving !== prevIsMoving ||
-        player.isBumping !== prevIsBumping ||
-        player.isWaitingForDoor !== prevIsWaitingForDoor;
+        player.isBumping !== prevIsBumping;
+
       
       if (stateChanged) {
         render()
