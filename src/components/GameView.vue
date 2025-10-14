@@ -147,7 +147,7 @@ export default {
   const maze = ref(new Maze(15, 15))
   const player = reactive(new Player(1, 1, 0)) // Start at exact integer position
     const stepCount = ref(0)
-    const fovDegrees = ref(60)
+    const fovDegrees = ref(120)
     const currentBiome = ref('DUNGEON')
     
     // Battle system
@@ -171,6 +171,7 @@ export default {
       // Load custom office wall texture
       try {
         await textureManager.loadTexture('office_wall', '/textures/office_wall.png')
+        await textureManager.loadTexture('office_floor', '/textures/office_floor.png')
         console.log('Custom office wall texture loaded successfully!')
       } catch (error) {
         console.warn('Failed to load office wall texture, using procedural fallback:', error)
@@ -229,6 +230,16 @@ export default {
       maze.value.addDoor(3, 5, 3, 6)  // Door in wall between (3,5) and (3,6)
       maze.value.addDoor(7, 6, 8, 6)  // Door in wall between (7,6) and (8,6)
       maze.value.addDoor(2, 8, 3, 8)  // Door in wall between (2,8) and (3,8)
+      
+      try {
+        await textureManager.loadTexture('astronaut', '/textures/astronaut.png')
+        console.log('Astronaut NPC texture loaded successfully!')
+      } catch (error) {
+        console.warn('Failed to load astronaut texture, will use placeholder:', error)
+      }
+  
+      // facingDirection: 0=North, 1=East, 2=South, 3=West
+      maze.value.addNPC(5, 5, 'friendly', 'Astronaut', 'astronaut', 0)
       
       // Initialize renderers
       mazeRenderer = new MazeRenderer(mainCanvas.value, textureManager)

@@ -7,6 +7,7 @@ export class Maze {
     this.startPosition = { x: 1, y: 1 };
     this.exitPosition = { x: width - 2, y: height - 2 };
     this.doors = new Map(); // key: door id, value: { x1, y1, x2, y2, isOpen, openProgress }
+    this.npcs = new Map(); // key: "x,y", value: { x, y, type, name, image, visible }
   }
 
   initializeCells() {
@@ -101,10 +102,63 @@ export class Maze {
     }
   }
 
+  addNPC(x, y, type, name, image, facingDirection = 0) {
+    const key = `${x},${y}`;
+    this.npcs.set(key, {
+      x: x,
+      y: y,
+      type: type,
+      name: name,
+      image: image,
+      facingDirection: facingDirection, // 0=North, 1=East, 2=South, 3=West
+      visible: false // NPC becomes visible when player enters same tile AND faces correct direction
+    });
+  }
+
+  removeNPC(x, y) {
+    const key = `${x},${y}`;
+    this.npcs.delete(key);
+  }
+
+  getNPC(x, y) {
+    const key = `${x},${y}`;
+    return this.npcs.get(key);
+  }
+
+  hasNPC(x, y) {
+    const key = `${x},${y}`;
+    return this.npcs.has(key);
+  }
+
+  getVisibleNPCs() {
+    return Array.from(this.npcs.values()).filter(npc => npc.visible);
+  }
+
+  updateNPCVisibility(playerX, playerY, playerDirection) {
+    for (let npc of this.npcs.values()) {
+      const playerGridX = Math.floor(playerX);
+      const playerGridY = Math.floor(playerY);
+      const onSameTile = (npc.x === playerGridX && npc.y === playerGridY);
+      
+      if (onSameTile) {
+        const requiredDirection = npc.facingDirection || 0;
+        const facingCorrectDirection = Math.round(playerDirection) === requiredDirection;
+        npc.visible = facingCorrectDirection;
+      } else {
+        npc.visible = false;
+      }
+    }
+  }
+
   toJSON() {
     const doorsArray = Array.from(this.doors.entries()).map(([key, door]) => ({
       key,
       ...door
+    }));
+    
+    const npcsArray = Array.from(this.npcs.entries()).map(([key, npc]) => ({
+      key,
+      ...npc
     }));
     
     return {
@@ -114,7 +168,8 @@ export class Maze {
       cells: this.cells,
       startPosition: this.startPosition,
       exitPosition: this.exitPosition,
-      doors: doorsArray
+      doors: doorsArray,
+      npcs: npcsArray
     };
   }
 
@@ -133,7 +188,24 @@ export class Maze {
           x2: doorData.x2,
           y2: doorData.y2,
           isOpen: false,
-          openProgress: 0
+          openProgress: 0,
+          closeTimer: 0,
+          isClosing: false
+        });
+      });
+    }
+    
+    if (data.npcs) {
+      maze.npcs = new Map();
+      data.npcs.forEach(npcData => {
+        maze.npcs.set(npcData.key, {
+          x: npcData.x,
+          y: npcData.y,
+          type: npcData.type,
+          name: npcData.name,
+          image: npcData.image,
+          facingDirection: npcData.facingDirection || 0,
+          visible: false
         });
       });
     }
@@ -423,6 +495,10 @@ export class Player {
         console.error('Direction corrupted, forcing to 0:', this.direction);
         this.direction = 0;
       }
+    }
+
+    if (maze) {
+      maze.updateNPCVisibility(this.x, this.y, this.direction);
     }
 
     return this.isMoving || this.isTurning || this.isBumping || this.isWaitingForDoor;

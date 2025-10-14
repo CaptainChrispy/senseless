@@ -45,6 +45,7 @@ export class MazeRenderer {
     this.drawSky();
     this.drawFloor();
     this.drawWalls(maze, player);
+    this.drawNPCs(maze, player);
   }
 
   clearScreen() {
@@ -287,6 +288,145 @@ export class MazeRenderer {
       this.ctx.fillRect(x, drawStart, 1, Math.max(1, drawEnd - drawStart));
     }
   }
+
+  drawNPCs(maze, player) {
+    const visibleNPCs = maze.getVisibleNPCs();
+    
+    for (let npc of visibleNPCs) {
+      this.drawNPC(npc, player);
+    }
+  }
+
+  drawNPC(npc, player) {
+    const npcTexture = this.textureManager.getTexture(npc.image);
+    
+    if (!npcTexture || !npcTexture.complete) {
+      this.drawNPCPlaceholder(npc.name, npc.facingDirection);
+      return;
+    }
+
+    const npcScreenWidth = this.width * 0.2;
+    const npcScreenHeight = this.height * 0.4;
+    
+    let npcScreenX, npcScreenY;
+    
+    switch(npc.facingDirection) {
+      case 0: // North side - NPC is straight ahead
+        npcScreenX = (this.width - npcScreenWidth) / 2;
+        npcScreenY = (this.height / 2) - (npcScreenHeight * 0.4);
+        break;
+      case 1: // East side - NPC is to the right
+        npcScreenX = this.width * 0.65;
+        npcScreenY = (this.height / 2) - (npcScreenHeight * 0.3);
+        break;
+      case 2: // South side - NPC is behind
+        npcScreenX = (this.width - npcScreenWidth) / 2;
+        npcScreenY = (this.height / 2) - (npcScreenHeight * 0.2);
+        break;
+      case 3: // West side - NPC is to the left
+        npcScreenX = this.width * 0.1;
+        npcScreenY = (this.height / 2) - (npcScreenHeight * 0.3);
+        break;
+      default:
+        npcScreenX = (this.width - npcScreenWidth) / 2;
+        npcScreenY = (this.height / 2) - (npcScreenHeight * 0.3);
+    }
+
+    // Draw blob shadow
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.3;
+    this.ctx.fillStyle = '#000000';
+    
+    const shadowWidth = npcScreenWidth * 0.8;
+    const shadowHeight = shadowWidth * 0.3;
+    const shadowX = npcScreenX + (npcScreenWidth - shadowWidth) / 2;
+    const shadowY = npcScreenY + npcScreenHeight - shadowHeight * 0.5;
+    
+    this.ctx.beginPath();
+    this.ctx.ellipse(
+      shadowX + shadowWidth / 2,
+      shadowY + shadowHeight / 2,
+      shadowWidth / 2,
+      shadowHeight / 2,
+      0, 0, 2 * Math.PI
+    );
+    this.ctx.fill();
+    this.ctx.restore();
+
+    this.ctx.save();
+    this.ctx.globalAlpha = 0.9;
+    
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.webkitImageSmoothingEnabled = false;
+    this.ctx.mozImageSmoothingEnabled = false;
+    this.ctx.msImageSmoothingEnabled = false;
+    
+    this.ctx.drawImage(
+      npcTexture,
+      npcScreenX, npcScreenY,
+      npcScreenWidth, npcScreenHeight
+    );
+    
+    this.ctx.restore();
+  }
+
+  drawNPCPlaceholder(npcName, facingDirection = 0) {
+    this.ctx.save();
+    
+    const placeholderWidth = this.width * 0.2;
+    const placeholderHeight = this.height * 0.4;
+    
+    let placeholderX, placeholderY;
+    
+    switch(facingDirection) {
+      case 0: // North side
+        placeholderX = (this.width - placeholderWidth) / 2;
+        placeholderY = (this.height - placeholderHeight) / 2;
+        break;
+      case 1: // East side
+        placeholderX = this.width * 0.7;
+        placeholderY = (this.height - placeholderHeight) / 2;
+        break;
+      case 2: // South side
+        placeholderX = (this.width - placeholderWidth) / 2;
+        placeholderY = (this.height - placeholderHeight) / 2;
+        break;
+      case 3: // West side
+        placeholderX = this.width * 0.1;
+        placeholderY = (this.height - placeholderHeight) / 2;
+        break;
+      default:
+        placeholderX = (this.width - placeholderWidth) / 2;
+        placeholderY = (this.height - placeholderHeight) / 2;
+    }
+    
+    // Draw placeholder rectangle
+    this.ctx.fillStyle = '#4CAF50';
+    this.ctx.fillRect(placeholderX, placeholderY, placeholderWidth, placeholderHeight);
+    
+    // Draw border
+    this.ctx.strokeStyle = '#2E7D32';
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeRect(placeholderX, placeholderY, placeholderWidth, placeholderHeight);
+    
+    // Draw "NPC" text
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = 'bold 16px Arial';
+    this.ctx.textAlign = 'center';
+    this.ctx.fillText('NPC', this.width / 2, this.height / 2);
+    
+    // Draw name below
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.strokeStyle = '#000000';
+    this.ctx.lineWidth = 2;
+    this.ctx.font = 'bold 20px Arial';
+    
+    const textY = placeholderY + placeholderHeight + 30;
+    this.ctx.strokeText(npcName, this.width / 2, textY);
+    this.ctx.fillText(npcName, this.width / 2, textY);
+    
+    this.ctx.restore();
+  }
 }
 
 export class MinimapRenderer {
@@ -375,6 +515,29 @@ export class MinimapRenderer {
       this.ctx.font = `${this.scale * 0.6}px monospace`;
       this.ctx.textAlign = 'center';
       this.ctx.fillText('E', exitX + this.scale/2, exitY + this.scale*0.7);
+    }
+    
+    // Draw NPCs on minimap
+    for (let npc of maze.npcs.values()) {
+      const npcScreenX = npc.x * this.scale;
+      const npcScreenY = npc.y * this.scale;
+      
+      this.ctx.fillStyle = npc.visible ? 'rgba(0, 150, 255, 0.6)' : 'rgba(0, 150, 255, 0.3)';
+      this.ctx.fillRect(npcScreenX, npcScreenY, this.scale, this.scale);
+      
+      this.ctx.fillStyle = npc.visible ? '#0099ff' : '#0066cc';
+      this.ctx.beginPath();
+      this.ctx.arc(npcScreenX + this.scale/2, npcScreenY + this.scale/2, this.scale / 3, 0, 2 * Math.PI);
+      this.ctx.fill();
+      
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.font = `bold ${this.scale * 0.4}px monospace`;
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText(
+        npc.name.charAt(0).toUpperCase(), 
+        npcScreenX + this.scale/2, 
+        npcScreenY + this.scale*0.65
+      );
     }
     
     const playerScreenX = player.x * this.scale;
