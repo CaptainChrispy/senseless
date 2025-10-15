@@ -110,7 +110,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { Maze } from '../game/GameEngine.js'
 import { getBiomeNames } from '../game/TextureManager.js'
 
@@ -251,11 +251,10 @@ export default {
       
       currentMaze.value = newMaze
       
-      // Update canvas size
-      editorCanvas.value.width = newMaze.width * cellSize
-      editorCanvas.value.height = newMaze.height * cellSize
-      
-      renderEditor()
+      nextTick(() => {
+        ctx = editorCanvas.value.getContext('2d')
+        renderEditor()
+      })
     }
     
     const clearMaze = () => {
