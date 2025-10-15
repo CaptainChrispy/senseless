@@ -419,15 +419,25 @@ export class MinimapRenderer {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.scale = 15;
+    this.viewSize = 15;
   }
 
   render(maze, player) {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     
-    for (let y = 0; y < maze.height; y++) {
-      for (let x = 0; x < maze.width; x++) {
-        const screenX = x * this.scale;
-        const screenY = y * this.scale;
+    const halfView = Math.floor(this.viewSize / 2);
+    const minX = Math.max(0, Math.floor(player.x) - halfView);
+    const maxX = Math.min(maze.width, minX + this.viewSize);
+    const minY = Math.max(0, Math.floor(player.y) - halfView);
+    const maxY = Math.min(maze.height, minY + this.viewSize);
+    
+    const actualMinX = Math.max(0, maxX - this.viewSize);
+    const actualMinY = Math.max(0, maxY - this.viewSize);
+    
+    for (let y = actualMinY; y < maxY; y++) {
+      for (let x = actualMinX; x < maxX; x++) {
+        const screenX = (x - actualMinX) * this.scale;
+        const screenY = (y - actualMinY) * this.scale;
         
         if (maze.isWall(x, y)) {
           this.ctx.fillStyle = '#666666';
@@ -442,71 +452,81 @@ export class MinimapRenderer {
     this.ctx.strokeStyle = '#444444';
     this.ctx.lineWidth = 1;
     
-    for (let x = 0; x <= maze.width; x++) {
+    const gridWidth = maxX - actualMinX;
+    const gridHeight = maxY - actualMinY;
+    
+    for (let x = 0; x <= gridWidth; x++) {
       this.ctx.beginPath();
       this.ctx.moveTo(x * this.scale, 0);
-      this.ctx.lineTo(x * this.scale, maze.height * this.scale);
+      this.ctx.lineTo(x * this.scale, gridHeight * this.scale);
       this.ctx.stroke();
     }
     
-    for (let y = 0; y <= maze.height; y++) {
+    for (let y = 0; y <= gridHeight; y++) {
       this.ctx.beginPath();
       this.ctx.moveTo(0, y * this.scale);
-      this.ctx.lineTo(maze.width * this.scale, y * this.scale);
+      this.ctx.lineTo(gridWidth * this.scale, y * this.scale);
       this.ctx.stroke();
     }
     
-
-    
     if (maze.startPosition) {
-      const startX = maze.startPosition.x * this.scale;
-      const startY = maze.startPosition.y * this.scale;
-      this.ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-      this.ctx.fillRect(startX, startY, this.scale, this.scale);
-      
-      this.ctx.fillStyle = '#00ff00';
-      this.ctx.font = `${this.scale * 0.6}px monospace`;
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText('S', startX + this.scale/2, startY + this.scale*0.7);
+      if (maze.startPosition.x >= actualMinX && maze.startPosition.x < maxX &&
+          maze.startPosition.y >= actualMinY && maze.startPosition.y < maxY) {
+        const startX = (maze.startPosition.x - actualMinX) * this.scale;
+        const startY = (maze.startPosition.y - actualMinY) * this.scale;
+        this.ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+        this.ctx.fillRect(startX, startY, this.scale, this.scale);
+        
+        this.ctx.fillStyle = '#00ff00';
+        this.ctx.font = `${this.scale * 0.6}px monospace`;
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('S', startX + this.scale/2, startY + this.scale*0.7);
+      }
     }
     
     if (maze.exitPosition) {
-      const exitX = maze.exitPosition.x * this.scale;
-      const exitY = maze.exitPosition.y * this.scale;
-      this.ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-      this.ctx.fillRect(exitX, exitY, this.scale, this.scale);
-      
-      this.ctx.fillStyle = '#ff0000';
-      this.ctx.font = `${this.scale * 0.6}px monospace`;
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText('E', exitX + this.scale/2, exitY + this.scale*0.7);
+      if (maze.exitPosition.x >= actualMinX && maze.exitPosition.x < maxX &&
+          maze.exitPosition.y >= actualMinY && maze.exitPosition.y < maxY) {
+        const exitX = (maze.exitPosition.x - actualMinX) * this.scale;
+        const exitY = (maze.exitPosition.y - actualMinY) * this.scale;
+        this.ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+        this.ctx.fillRect(exitX, exitY, this.scale, this.scale);
+        
+        this.ctx.fillStyle = '#ff0000';
+        this.ctx.font = `${this.scale * 0.6}px monospace`;
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('E', exitX + this.scale/2, exitY + this.scale*0.7);
+      }
     }
     
     // Draw NPCs on minimap
     for (let npc of maze.npcs.values()) {
-      const npcScreenX = npc.x * this.scale;
-      const npcScreenY = npc.y * this.scale;
-      
-      this.ctx.fillStyle = npc.visible ? 'rgba(0, 150, 255, 0.6)' : 'rgba(0, 150, 255, 0.3)';
-      this.ctx.fillRect(npcScreenX, npcScreenY, this.scale, this.scale);
-      
-      this.ctx.fillStyle = npc.visible ? '#0099ff' : '#0066cc';
-      this.ctx.beginPath();
-      this.ctx.arc(npcScreenX + this.scale/2, npcScreenY + this.scale/2, this.scale / 3, 0, 2 * Math.PI);
-      this.ctx.fill();
-      
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = `bold ${this.scale * 0.4}px monospace`;
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(
-        npc.name.charAt(0).toUpperCase(), 
-        npcScreenX + this.scale/2, 
-        npcScreenY + this.scale*0.65
-      );
+      if (npc.x >= actualMinX && npc.x < maxX &&
+          npc.y >= actualMinY && npc.y < maxY) {
+        const npcScreenX = (npc.x - actualMinX) * this.scale;
+        const npcScreenY = (npc.y - actualMinY) * this.scale;
+        
+        this.ctx.fillStyle = npc.visible ? 'rgba(0, 150, 255, 0.6)' : 'rgba(0, 150, 255, 0.3)';
+        this.ctx.fillRect(npcScreenX, npcScreenY, this.scale, this.scale);
+        
+        this.ctx.fillStyle = npc.visible ? '#0099ff' : '#0066cc';
+        this.ctx.beginPath();
+        this.ctx.arc(npcScreenX + this.scale/2, npcScreenY + this.scale/2, this.scale / 3, 0, 2 * Math.PI);
+        this.ctx.fill();
+        
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = `bold ${this.scale * 0.4}px monospace`;
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(
+          npc.name.charAt(0).toUpperCase(), 
+          npcScreenX + this.scale/2, 
+          npcScreenY + this.scale*0.65
+        );
+      }
     }
     
-    const playerScreenX = player.x * this.scale;
-    const playerScreenY = player.y * this.scale;
+    const playerScreenX = (player.x - actualMinX) * this.scale;
+    const playerScreenY = (player.y - actualMinY) * this.scale;
     
     this.ctx.fillStyle = '#ffff00';
     this.ctx.beginPath();

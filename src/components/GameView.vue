@@ -35,8 +35,8 @@
           <h3>Map</h3>
           <canvas 
             ref="minimapCanvas" 
-            :width="maze.width * 15" 
-            :height="maze.height * 15"
+            :width="15 * 15" 
+            :height="15 * 15"
             class="minimap-canvas"
           ></canvas>
         </div>
