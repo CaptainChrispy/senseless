@@ -27,9 +27,28 @@
                 type="number" 
                 min="5" 
                 max="30"
-                @change="resizeMaze"
+                @change="resizeCurrentFloor"
               />
             </label>
+            <label>
+              Floors: 
+              <input 
+                v-model.number="numFloors" 
+                type="number" 
+                min="1" 
+                max="10"
+                @change="updateFloors"
+              />
+            </label>
+            <label>
+              Current Floor: 
+              <select v-model.number="currentFloor">
+                <option v-for="f in numFloors" :key="f-1" :value="f-1">
+                  Floor {{ f }}
+                </option>
+              </select>
+            </label>
+            <p class="floor-info">Floor {{ currentFloor + 1 }} size: {{ currentFloorWidth }} x {{ currentFloorHeight }}</p>
             <label>
               Biome:
               <select v-model="selectedBiome" @change="changeBiome">
@@ -71,6 +90,20 @@
                 value="exit"
               /> Set Exit
             </label>
+            <label>
+              <input 
+                v-model="editMode" 
+                type="radio" 
+                value="stairsUp"
+              /> Stairs Up
+            </label>
+            <label>
+              <input 
+                v-model="editMode" 
+                type="radio" 
+                value="stairsDown"
+              /> Stairs Down
+            </label>
           </div>
           
           <div class="control-group">
@@ -92,8 +125,8 @@
         <div class="maze-editor">
           <canvas 
             ref="editorCanvas"
-            :width="currentMaze.width * cellSize"
-            :height="currentMaze.height * cellSize"
+            :width="currentFloorWidth * cellSize"
+            :height="currentFloorHeight * cellSize"
             @click="handleCanvasClick"
             @mousemove="handleCanvasHover"
             class="editor-canvas"
@@ -110,7 +143,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, onMounted, watch, nextTick, computed } from 'vue'
 import { Maze } from '../game/GameEngine.js'
 import { getBiomeNames } from '../game/TextureManager.js'
 
@@ -129,24 +162,51 @@ export default {
     
     const mazeWidth = ref(props.maze.width)
     const mazeHeight = ref(props.maze.height)
+    const numFloors = ref(props.maze.numFloors || 1)
+    const currentFloor = ref(0)
     const selectedBiome = ref(props.maze.biome || 'DUNGEON')
     const biomeOptions = ref(getBiomeNames())
     const editMode = ref('wall')
     const cellSize = 20
-    const currentMaze = ref(new Maze(props.maze.width, props.maze.height, props.maze.biome || 'DUNGEON'))
+    const currentMaze = ref(new Maze(props.maze.width, props.maze.height, props.maze.biome || 'DUNGEON', props.maze.numFloors || 1))
     
     let ctx = null
+    
+    const currentFloorWidth = computed(() => currentMaze.value.getFloorWidth(currentFloor.value))
+    const currentFloorHeight = computed(() => currentMaze.value.getFloorHeight(currentFloor.value))
+    
+    watch(currentFloor, () => {
+      mazeWidth.value = currentFloorWidth.value
+      mazeHeight.value = currentFloorHeight.value
+      nextTick(() => {
+        ctx = editorCanvas.value.getContext('2d')
+        renderEditor()
+      })
+    })
     
     const initializeEditor = () => {
       ctx = editorCanvas.value.getContext('2d')
       
       // Copy current maze state
-      currentMaze.value.cells = props.maze.cells.map(row => [...row])
-      currentMaze.value.startPosition = { ...props.maze.startPosition }
-      currentMaze.value.exitPosition = { ...props.maze.exitPosition }
+      if (props.maze.floorData) {
+        currentMaze.value.floorData = props.maze.floorData.map(f => ({
+          width: f.width,
+          height: f.height,
+          cells: f.cells.map(row => [...row])
+        }))
+        currentMaze.value.numFloors = props.maze.numFloors
+      } else if (props.maze.floors) {
+        currentMaze.value.floors = props.maze.floors.map(floor => floor.map(row => [...row]))
+        currentMaze.value.numFloors = props.maze.numFloors
+      } else {
+        currentMaze.value.floors[0] = props.maze.cells.map(row => [...row])
+      }
+      currentMaze.value.startPosition = { ...props.maze.startPosition, floor: props.maze.startPosition.floor || 0 }
+      currentMaze.value.exitPosition = { ...props.maze.exitPosition, floor: props.maze.exitPosition.floor || 0 }
       currentMaze.value.biome = props.maze.biome || 'DUNGEON'
-      
-
+      if (props.maze.stairs) {
+        currentMaze.value.stairs = new Map(props.maze.stairs)
+      }
       
       selectedBiome.value = currentMaze.value.biome
       
@@ -158,22 +218,31 @@ export default {
       
       ctx.clearRect(0, 0, editorCanvas.value.width, editorCanvas.value.height)
       
+      const floor = currentFloor.value
+      const floorWidth = currentFloorWidth.value
+      const floorHeight = currentFloorHeight.value
+      
       // Draw grid
-      for (let y = 0; y < currentMaze.value.height; y++) {
-        for (let x = 0; x < currentMaze.value.width; x++) {
+      for (let y = 0; y < floorHeight; y++) {
+        for (let x = 0; x < floorWidth; x++) {
           const screenX = x * cellSize
           const screenY = y * cellSize
           
           // Determine cell color
           let fillColor = '#333'
-          if (currentMaze.value.isWall(x, y)) {
+          if (currentMaze.value.isWall(x, y, floor)) {
             fillColor = '#666'
           }
           
+          if (currentMaze.value.hasStairs(x, y, floor)) {
+            const stairs = currentMaze.value.getStairs(x, y, floor)
+            fillColor = stairs.targetFloor > floor ? '#00aaff' : '#ff8800' // Blue for up, Orange for down
+          }
+          
           // Highlight start and exit positions
-          if (x === currentMaze.value.startPosition.x && y === currentMaze.value.startPosition.y) {
+          if (x === currentMaze.value.startPosition.x && y === currentMaze.value.startPosition.y && floor === currentMaze.value.startPosition.floor) {
             fillColor = '#00ff00'
-          } else if (x === currentMaze.value.exitPosition.x && y === currentMaze.value.exitPosition.y) {
+          } else if (x === currentMaze.value.exitPosition.x && y === currentMaze.value.exitPosition.y && floor === currentMaze.value.exitPosition.floor) {
             fillColor = '#ff0000'
           }
           
@@ -194,28 +263,43 @@ export default {
       const clickX = event.clientX - rect.left
       const clickY = event.clientY - rect.top
       
-
+      const floor = currentFloor.value
+      const floorWidth = currentFloorWidth.value
+      const floorHeight = currentFloorHeight.value
       
       // Normal cell-based editing
       const x = Math.floor(clickX / cellSize)
       const y = Math.floor(clickY / cellSize)
       
-      if (x < 0 || x >= currentMaze.value.width || y < 0 || y >= currentMaze.value.height) {
+      if (x < 0 || x >= floorWidth || y < 0 || y >= floorHeight) {
         return
       }
       
       switch (editMode.value) {
         case 'wall':
-          currentMaze.value.addWall(x, y)
+          currentMaze.value.addWall(x, y, floor)
           break
         case 'empty':
-          currentMaze.value.removeWall(x, y)
+          currentMaze.value.removeWall(x, y, floor)
+          currentMaze.value.removeStairs(x, y, floor) // Remove stairs if making it empty
           break
         case 'start':
-          currentMaze.value.startPosition = { x, y }
+          currentMaze.value.startPosition = { x, y, floor }
           break
         case 'exit':
-          currentMaze.value.exitPosition = { x, y }
+          currentMaze.value.exitPosition = { x, y, floor }
+          break
+        case 'stairsUp':
+          if (floor < currentMaze.value.numFloors - 1) {
+            currentMaze.value.removeWall(x, y, floor)
+            currentMaze.value.addStairs(x, y, floor, floor + 1, x, y)
+          }
+          break
+        case 'stairsDown':
+          if (floor > 0) {
+            currentMaze.value.removeWall(x, y, floor)
+            currentMaze.value.addStairs(x, y, floor, floor - 1, x, y)
+          }
           break
       }
       
@@ -226,31 +310,47 @@ export default {
       // Add visual feedback for hover (optional)
     }
     
-    const resizeMaze = () => {
-      const newMaze = new Maze(mazeWidth.value, mazeHeight.value, currentMaze.value.biome)
+    const updateFloors = () => {
+      const newFloorCount = numFloors.value
+      if (newFloorCount === currentMaze.value.numFloors) return
       
-      // Copy existing cells that fit
-      for (let y = 0; y < Math.min(currentMaze.value.height, newMaze.height); y++) {
-        for (let x = 0; x < Math.min(currentMaze.value.width, newMaze.width); x++) {
-          newMaze.cells[y][x] = currentMaze.value.cells[y][x]
+      if (newFloorCount > currentMaze.value.numFloors) {
+        const defaultWidth = currentMaze.value.getFloorWidth(0)
+        const defaultHeight = currentMaze.value.getFloorHeight(0)
+        for (let f = currentMaze.value.numFloors; f < newFloorCount; f++) {
+          currentMaze.value.floorData[f] = {
+            width: defaultWidth,
+            height: defaultHeight,
+            cells: currentMaze.value.initializeCells(defaultWidth, defaultHeight)
+          }
+        }
+      } else {
+        currentMaze.value.floorData = currentMaze.value.floorData.slice(0, newFloorCount)
+        if (currentFloor.value >= newFloorCount) {
+          currentFloor.value = newFloorCount - 1
         }
       }
       
-      // Adjust start and exit positions if they're out of bounds
-      if (currentMaze.value.startPosition.x >= newMaze.width || currentMaze.value.startPosition.y >= newMaze.height) {
-        newMaze.startPosition = { x: 1, y: 1 }
-      } else {
-        newMaze.startPosition = currentMaze.value.startPosition
+      currentMaze.value.numFloors = newFloorCount
+      renderEditor()
+    }
+    
+    const resizeCurrentFloor = () => {
+      currentMaze.value.setFloorDimensions(currentFloor.value, mazeWidth.value, mazeHeight.value)
+      nextTick(() => {
+        ctx = editorCanvas.value.getContext('2d')
+        renderEditor()
+      })
+    }
+    
+    const resizeMaze = () => {
+      resizeCurrentFloor()
+    }
+    
+    const resizeAllFloors = () => {
+      for (let f = 0; f < currentMaze.value.numFloors; f++) {
+        currentMaze.value.setFloorDimensions(f, mazeWidth.value, mazeHeight.value)
       }
-      
-      if (currentMaze.value.exitPosition.x >= newMaze.width || currentMaze.value.exitPosition.y >= newMaze.height) {
-        newMaze.exitPosition = { x: newMaze.width - 2, y: newMaze.height - 2 }
-      } else {
-        newMaze.exitPosition = currentMaze.value.exitPosition
-      }
-      
-      currentMaze.value = newMaze
-      
       nextTick(() => {
         ctx = editorCanvas.value.getContext('2d')
         renderEditor()
@@ -268,13 +368,13 @@ export default {
     }
     
     const generateMaze = () => {
-      // Simple maze generation algorithm
-      const maze = new Maze(mazeWidth.value, mazeHeight.value, selectedBiome.value)
+      const floor = currentFloor.value
+      const floorWidth = currentFloorWidth.value
+      const floorHeight = currentFloorHeight.value
       
-      // Fill with walls
-      for (let y = 0; y < maze.height; y++) {
-        for (let x = 0; x < maze.width; x++) {
-          maze.cells[y][x] = 1
+      for (let y = 0; y < floorHeight; y++) {
+        for (let x = 0; x < floorWidth; x++) {
+          currentMaze.value.addWall(x, y, floor)
         }
       }
       
@@ -283,7 +383,7 @@ export default {
       const startX = 1
       const startY = 1
       
-      maze.removeWall(startX, startY)
+      currentMaze.value.removeWall(startX, startY, floor)
       stack.push({ x: startX, y: startY })
       
       while (stack.length > 0) {
@@ -302,8 +402,8 @@ export default {
           const newX = current.x + dir.x
           const newY = current.y + dir.y
           
-          if (newX > 0 && newX < maze.width - 1 && newY > 0 && newY < maze.height - 1) {
-            if (maze.isWall(newX, newY)) {
+          if (newX > 0 && newX < floorWidth - 1 && newY > 0 && newY < floorHeight - 1) {
+            if (currentMaze.value.isWall(newX, newY, floor)) {
               neighbors.push({ x: newX, y: newY, wallX: current.x + dir.x / 2, wallY: current.y + dir.y / 2 })
             }
           }
@@ -311,15 +411,14 @@ export default {
         
         if (neighbors.length > 0) {
           const chosen = neighbors[Math.floor(Math.random() * neighbors.length)]
-          maze.removeWall(chosen.x, chosen.y)
-          maze.removeWall(chosen.wallX, chosen.wallY)
+          currentMaze.value.removeWall(chosen.x, chosen.y, floor)
+          currentMaze.value.removeWall(chosen.wallX, chosen.wallY, floor)
           stack.push({ x: chosen.x, y: chosen.y })
         } else {
           stack.pop()
         }
       }
       
-      currentMaze.value = maze
       renderEditor()
     }
     
@@ -378,14 +477,21 @@ export default {
       fileInput,
       mazeWidth,
       mazeHeight,
+      numFloors,
+      currentFloor,
       selectedBiome,
       biomeOptions,
       editMode,
       cellSize,
       currentMaze,
+      currentFloorWidth,
+      currentFloorHeight,
       handleCanvasClick,
       handleCanvasHover,
       resizeMaze,
+      resizeCurrentFloor,
+      resizeAllFloors,
+      updateFloors,
       changeBiome,
       clearMaze,
       generateMaze,
@@ -509,6 +615,16 @@ export default {
 .control-group select option {
   background-color: #444;
   color: #fff;
+}
+
+.floor-info {
+  margin: 10px 0;
+  padding: 8px;
+  background-color: #333;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #aaa;
+  text-align: center;
 }
 
 .control-group input[type="radio"] {

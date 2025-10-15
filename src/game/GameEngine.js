@@ -1,20 +1,32 @@
 export class Maze {
-  constructor(width = 10, height = 10, biome = 'DUNGEON') {
-    this.width = width;
-    this.height = height;
+  constructor(width = 10, height = 10, biome = 'DUNGEON', floors = 1) {
     this.biome = biome;
-    this.cells = this.initializeCells();
-    this.startPosition = { x: 1, y: 1 };
-    this.exitPosition = { x: width - 2, y: height - 2 };
-    this.npcs = new Map(); // key: "x,y", value: { x, y, type, name, image, visible }
+    this.numFloors = floors;
+    this.floorData = this.initializeFloors(width, height);
+    this.startPosition = { x: 1, y: 1, floor: 0 };
+    this.exitPosition = { x: width - 2, y: height - 2, floor: floors - 1 };
+    this.npcs = new Map(); // key: "x,y,floor", value: { x, y, floor, type, name, image, visible }
+    this.stairs = new Map(); // key: "x,y,floor", value: { x, y, floor, targetFloor, targetX, targetY }
   }
 
-  initializeCells() {
+  initializeFloors(width, height) {
+    const floors = [];
+    for (let f = 0; f < this.numFloors; f++) {
+      floors[f] = {
+        width: width,
+        height: height,
+        cells: this.initializeCells(width, height)
+      };
+    }
+    return floors;
+  }
+
+  initializeCells(width, height) {
     const cells = [];
-    for (let y = 0; y < this.height; y++) {
+    for (let y = 0; y < height; y++) {
       cells[y] = [];
-      for (let x = 0; x < this.width; x++) {
-        if (x === 0 || y === 0 || x === this.width - 1 || y === this.height - 1) {
+      for (let x = 0; x < width; x++) {
+        if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
           cells[y][x] = 1; // Wall
         } else {
           cells[y][x] = 0; // Empty space
@@ -24,36 +36,126 @@ export class Maze {
     return cells;
   }
 
-  isWall(x, y) {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+  // Backward compatibility getters - default to floor 0
+  get width() {
+    return this.floorData[0]?.width || 0;
+  }
+
+  get height() {
+    return this.floorData[0]?.height || 0;
+  }
+
+  get cells() {
+    return this.floorData[0]?.cells || [];
+  }
+
+  set cells(value) {
+    if (this.floorData[0]) {
+      this.floorData[0].cells = value;
+    }
+  }
+
+  get floors() {
+    return this.floorData.map(f => f.cells);
+  }
+
+  set floors(value) {
+    value.forEach((cells, i) => {
+      if (this.floorData[i]) {
+        this.floorData[i].cells = cells;
+      }
+    });
+  }
+
+  getFloorWidth(floor) {
+    return this.floorData[floor]?.width || 0;
+  }
+
+  getFloorHeight(floor) {
+    return this.floorData[floor]?.height || 0;
+  }
+
+  setFloorDimensions(floor, width, height) {
+    if (floor >= 0 && floor < this.numFloors) {
+      const oldFloor = this.floorData[floor];
+      const newCells = this.initializeCells(width, height);
+      
+      // Copy existing cells that fit
+      if (oldFloor) {
+        for (let y = 0; y < Math.min(oldFloor.height, height); y++) {
+          for (let x = 0; x < Math.min(oldFloor.width, width); x++) {
+            newCells[y][x] = oldFloor.cells[y][x];
+          }
+        }
+      }
+      
+      this.floorData[floor] = { width, height, cells: newCells };
+    }
+  }
+
+  isWall(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return true;
+    const floorInfo = this.floorData[floor];
+    if (!floorInfo || x < 0 || x >= floorInfo.width || y < 0 || y >= floorInfo.height) {
       return true; // Out of bounds = wall
     }
-    return this.cells[y][x] === 1;
+    return floorInfo.cells[y][x] === 1;
   }
 
-  canMoveTo(x, y) {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+  canMoveTo(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return false;
+    const floorInfo = this.floorData[floor];
+    if (!floorInfo || x < 0 || x >= floorInfo.width || y < 0 || y >= floorInfo.height) {
       return false;
     }
-    return this.cells[y][x] === 0;
+    return floorInfo.cells[y][x] === 0;
   }
-  addWall(x, y) {
-    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-      this.cells[y][x] = 1;
+  
+  addWall(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return;
+    const floorInfo = this.floorData[floor];
+    if (floorInfo && x >= 0 && x < floorInfo.width && y >= 0 && y < floorInfo.height) {
+      floorInfo.cells[y][x] = 1;
     }
   }
 
-  removeWall(x, y) {
-    if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
-      this.cells[y][x] = 0;
+  removeWall(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return;
+    const floorInfo = this.floorData[floor];
+    if (floorInfo && x >= 0 && x < floorInfo.width && y >= 0 && y < floorInfo.height) {
+      floorInfo.cells[y][x] = 0;
     }
   }
 
-  addNPC(x, y, type, name, image, facingDirection = 0) {
-    const key = `${x},${y}`;
+  addStairs(x, y, floor, targetFloor, targetX = x, targetY = y) {
+    const key = `${x},${y},${floor}`;
+    this.stairs.set(key, {
+      x, y, floor,
+      targetFloor, targetX, targetY
+    });
+  }
+
+  removeStairs(x, y, floor) {
+    const key = `${x},${y},${floor}`;
+    this.stairs.delete(key);
+  }
+
+  getStairs(x, y, floor) {
+    const key = `${x},${y},${floor}`;
+    return this.stairs.get(key);
+  }
+
+  hasStairs(x, y, floor) {
+    const key = `${x},${y},${floor}`;
+    return this.stairs.has(key);
+  }
+
+  addNPC(x, y, type, name, image, facingDirection = 0, floor = 0) {
+    const key = `${x},${y},${floor}`;
     this.npcs.set(key, {
       x: x,
       y: y,
+      floor: floor,
       type: type,
       name: name,
       image: image,
@@ -62,18 +164,18 @@ export class Maze {
     });
   }
 
-  removeNPC(x, y) {
-    const key = `${x},${y}`;
+  removeNPC(x, y, floor = 0) {
+    const key = `${x},${y},${floor}`;
     this.npcs.delete(key);
   }
 
-  getNPC(x, y) {
-    const key = `${x},${y}`;
+  getNPC(x, y, floor = 0) {
+    const key = `${x},${y},${floor}`;
     return this.npcs.get(key);
   }
 
-  hasNPC(x, y) {
-    const key = `${x},${y}`;
+  hasNPC(x, y, floor = 0) {
+    const key = `${x},${y},${floor}`;
     return this.npcs.has(key);
   }
 
