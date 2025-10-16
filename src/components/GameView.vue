@@ -225,7 +225,26 @@ export default {
       maze.value.addWall(9, 4)
       maze.value.addWall(9, 5)
       
-
+      maze.value.addDoor(4, 3, 0, 0, {
+        locked: false,
+        showOnMinimap: true
+      })
+      
+      maze.value.addDoor(5, 5, 0, 1, {
+        locked: false,
+        showOnMinimap: true
+      })
+      
+      maze.value.addDoor(7, 4, 0, 3, {
+        locked: true,
+        showOnMinimap: true
+      })
+      
+      maze.value.addDoor(8, 7, 0, 0, {
+        locked: false,
+        showOnMinimap: true
+      })
+      
       
       try {
         await textureManager.loadTexture('astronaut', '/textures/astronaut.png')

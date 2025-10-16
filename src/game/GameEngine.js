@@ -1,3 +1,5 @@
+import { DoorManager } from './DoorSystem.js';
+
 export class Maze {
   constructor(width = 10, height = 10, biome = 'DUNGEON', floors = 1) {
     this.biome = biome;
@@ -7,6 +9,7 @@ export class Maze {
     this.exitPosition = { x: width - 2, y: height - 2, floor: floors - 1 };
     this.npcs = new Map(); // key: "x,y,floor", value: { x, y, floor, type, name, image, visible }
     this.stairs = new Map(); // key: "x,y,floor", value: { x, y, floor, targetFloor, targetX, targetY }
+    this.doorManager = new DoorManager();
   }
 
   initializeFloors(width, height) {
@@ -80,7 +83,6 @@ export class Maze {
       const oldFloor = this.floorData[floor];
       const newCells = this.initializeCells(width, height);
       
-      // Copy existing cells that fit
       if (oldFloor) {
         for (let y = 0; y < Math.min(oldFloor.height, height); y++) {
           for (let x = 0; x < Math.min(oldFloor.width, width); x++) {
@@ -199,11 +201,40 @@ export class Maze {
     }
   }
 
+  addDoor(x, y, floor, direction, config = {}) {
+    return this.doorManager.addDoor({
+      x, y, floor, direction,
+      ...config
+    });
+  }
+
+  removeDoor(x, y, floor, direction) {
+    return this.doorManager.removeDoor(x, y, floor, direction);
+  }
+
+  getDoor(x, y, floor, direction) {
+    return this.doorManager.getDoor(x, y, floor, direction);
+  }
+
+  hasDoor(x, y, floor, direction) {
+    return this.doorManager.hasDoor(x, y, floor, direction);
+  }
+
+  getDoorBetween(fromX, fromY, toX, toY, floor) {
+    return this.doorManager.getDoorBetween(fromX, fromY, toX, toY, floor);
+  }
+
+  updateDoors(deltaTime) {
+    this.doorManager.update(deltaTime);
+  }
+
   toJSON() {
     const npcsArray = Array.from(this.npcs.entries()).map(([key, npc]) => ({
       key,
       ...npc
     }));
+    
+    const doorsArray = this.doorManager.toJSON();
     
     return {
       width: this.width,
@@ -212,7 +243,8 @@ export class Maze {
       cells: this.cells,
       startPosition: this.startPosition,
       exitPosition: this.exitPosition,
-      npcs: npcsArray
+      npcs: npcsArray,
+      doors: doorsArray
     };
   }
 
@@ -237,16 +269,21 @@ export class Maze {
       });
     }
     
+    if (data.doors) {
+      maze.doorManager = DoorManager.fromJSON(data.doors);
+    }
+    
     return maze;
   }
 }
 
 // Player class
 export class Player {
-  constructor(x = 1, y = 1, direction = 0) {
+  constructor(x = 1, y = 1, direction = 0, floor = 0) {
     this.x = Math.floor(x) + 0.5;
     this.y = Math.floor(y) + 0.5;
     this.direction = Math.floor(direction); // 0=North, 1=East, 2=South, 3=West
+    this.floor = floor;
     this.level = 1;
     this.hp = 100;
     this.maxHp = 100;
@@ -316,6 +353,15 @@ export class Player {
     const newGridX = currentGridX + dx;
     const newGridY = currentGridY + dy;
     
+    const doorResult = maze.doorManager.handlePlayerMovement(
+      currentGridX, currentGridY, newGridX, newGridY, this.floor || 0
+    );
+    
+    if (doorResult.hasDoor && !doorResult.canPass) {
+      this.startBump();
+      return false;
+    }
+    
     if (maze.canMoveTo(newGridX, newGridY)) {
       this.targetX = newGridX + 0.5;
       this.targetY = newGridY + 0.5;
@@ -335,6 +381,15 @@ export class Player {
     const currentGridY = Math.floor(this.y);
     const newGridX = currentGridX + dx;
     const newGridY = currentGridY + dy;
+
+    const doorResult = maze.doorManager.handlePlayerMovement(
+      currentGridX, currentGridY, newGridX, newGridY, this.floor || 0
+    );
+    
+    if (doorResult.hasDoor && !doorResult.canPass) {
+      this.startBump();
+      return false;
+    }
     
     if (maze.canMoveTo(newGridX, newGridY)) {
       this.targetX = newGridX + 0.5;
@@ -415,6 +470,10 @@ export class Player {
         const gridY = Math.floor(this.y);
         this.x = gridX + 0.5;
         this.y = gridY + 0.5;
+
+        if (maze) {
+          maze.doorManager.closeDoorsNotAt(gridX, gridY, this.floor);
+        }
       } else {
         const moveRatio = moveProgress / distance;
         this.x += dx * moveRatio;
@@ -482,6 +541,7 @@ export class Player {
 
     if (maze) {
       maze.updateNPCVisibility(this.x, this.y, this.direction);
+      maze.updateDoors(deltaTime);
     }
 
     return this.isMoving || this.isTurning || this.isBumping;

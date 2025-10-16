@@ -104,6 +104,34 @@
                 value="stairsDown"
               /> Stairs Down
             </label>
+            <label>
+              <input 
+                v-model="editMode" 
+                type="radio" 
+                value="door"
+              /> Add Door
+            </label>
+            <label>
+              <input 
+                v-model="editMode" 
+                type="radio" 
+                value="removeDoor"
+              /> Remove Door
+            </label>
+            <div v-if="editMode === 'door' || editMode === 'removeDoor'" class="door-options">
+              <label>
+                Door Direction:
+                <select v-model.number="doorDirection">
+                  <option :value="0">North Edge</option>
+                  <option :value="1">East Edge</option>
+                  <option :value="2">South Edge</option>
+                  <option :value="3">West Edge</option>
+                </select>
+              </label>
+              <label v-if="editMode === 'door'">
+                <input v-model="doorLocked" type="checkbox" /> Locked
+              </label>
+            </div>
           </div>
           
           <div class="control-group">
@@ -167,6 +195,8 @@ export default {
     const selectedBiome = ref(props.maze.biome || 'DUNGEON')
     const biomeOptions = ref(getBiomeNames())
     const editMode = ref('wall')
+    const doorDirection = ref(0) // 0=North, 1=East, 2=South, 3=West
+    const doorLocked = ref(false)
     const cellSize = 20
     const currentMaze = ref(new Maze(props.maze.width, props.maze.height, props.maze.biome || 'DUNGEON', props.maze.numFloors || 1))
     
@@ -206,6 +236,10 @@ export default {
       currentMaze.value.biome = props.maze.biome || 'DUNGEON'
       if (props.maze.stairs) {
         currentMaze.value.stairs = new Map(props.maze.stairs)
+      }
+
+      if (props.maze.doorManager) {
+        currentMaze.value.doorManager = props.maze.doorManager
       }
       
       selectedBiome.value = currentMaze.value.biome
@@ -255,6 +289,36 @@ export default {
         }
       }
       
+      const doors = currentMaze.value.doorManager.getDoorsOnFloor(floor)
+      for (const door of doors) {
+        const doorScreenX = door.x * cellSize
+        const doorScreenY = door.y * cellSize
+        
+        ctx.strokeStyle = door.locked ? '#ff0000' : '#ffaa00'
+        ctx.lineWidth = 4
+        ctx.beginPath()
+        
+        switch(door.direction) {
+          case 0: // North edge
+            ctx.moveTo(doorScreenX, doorScreenY)
+            ctx.lineTo(doorScreenX + cellSize, doorScreenY)
+            break
+          case 1: // East edge
+            ctx.moveTo(doorScreenX + cellSize, doorScreenY)
+            ctx.lineTo(doorScreenX + cellSize, doorScreenY + cellSize)
+            break
+          case 2: // South edge
+            ctx.moveTo(doorScreenX, doorScreenY + cellSize)
+            ctx.lineTo(doorScreenX + cellSize, doorScreenY + cellSize)
+            break
+          case 3: // West edge
+            ctx.moveTo(doorScreenX, doorScreenY)
+            ctx.lineTo(doorScreenX, doorScreenY + cellSize)
+            break
+        }
+        
+        ctx.stroke()
+      }
 
     }
     
@@ -267,7 +331,6 @@ export default {
       const floorWidth = currentFloorWidth.value
       const floorHeight = currentFloorHeight.value
       
-      // Normal cell-based editing
       const x = Math.floor(clickX / cellSize)
       const y = Math.floor(clickY / cellSize)
       
@@ -281,7 +344,7 @@ export default {
           break
         case 'empty':
           currentMaze.value.removeWall(x, y, floor)
-          currentMaze.value.removeStairs(x, y, floor) // Remove stairs if making it empty
+          currentMaze.value.removeStairs(x, y, floor)
           break
         case 'start':
           currentMaze.value.startPosition = { x, y, floor }
@@ -300,6 +363,15 @@ export default {
             currentMaze.value.removeWall(x, y, floor)
             currentMaze.value.addStairs(x, y, floor, floor - 1, x, y)
           }
+          break
+        case 'door':
+          currentMaze.value.addDoor(x, y, floor, doorDirection.value, {
+            locked: doorLocked.value,
+            showOnMinimap: true
+          })
+          break
+        case 'removeDoor':
+          currentMaze.value.removeDoor(x, y, floor, doorDirection.value)
           break
       }
       
@@ -628,6 +700,31 @@ export default {
 }
 
 .control-group input[type="radio"] {
+  margin-right: 8px;
+}
+
+.door-options {
+  margin-left: 20px;
+  padding: 10px;
+  background-color: #3a3a3a;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.door-options label {
+  margin: 5px 0;
+}
+
+.door-options select {
+  width: 100%;
+  margin-top: 5px;
+  padding: 4px;
+  background-color: #444;
+  border: 1px solid #666;
+  color: #fff;
+}
+
+.door-options input[type="checkbox"] {
   margin-right: 8px;
 }
 
