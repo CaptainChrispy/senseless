@@ -110,7 +110,27 @@ export class Maze {
     if (!floorInfo || x < 0 || x >= floorInfo.width || y < 0 || y >= floorInfo.height) {
       return false;
     }
-    return floorInfo.cells[y][x] === 0;
+    // Can move to empty space (0) or slippery tiles (2)
+    const cellValue = floorInfo.cells[y][x];
+    return cellValue === 0 || cellValue === 2;
+  }
+  
+  isSlippery(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return false;
+    const floorInfo = this.floorData[floor];
+    if (!floorInfo || x < 0 || x >= floorInfo.width || y < 0 || y >= floorInfo.height) {
+      return false;
+    }
+    return floorInfo.cells[y][x] === 2;
+  }
+  
+  getCellType(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return 1; 
+    const floorInfo = this.floorData[floor];
+    if (!floorInfo || x < 0 || x >= floorInfo.width || y < 0 || y >= floorInfo.height) {
+      return 1;
+    }
+    return floorInfo.cells[y][x];
   }
   
   addWall(x, y, floor = 0) {
@@ -126,6 +146,24 @@ export class Maze {
     const floorInfo = this.floorData[floor];
     if (floorInfo && x >= 0 && x < floorInfo.width && y >= 0 && y < floorInfo.height) {
       floorInfo.cells[y][x] = 0;
+    }
+  }
+  
+  addSlipperyTile(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return;
+    const floorInfo = this.floorData[floor];
+    if (floorInfo && x >= 0 && x < floorInfo.width && y >= 0 && y < floorInfo.height) {
+      floorInfo.cells[y][x] = 2;
+    }
+  }
+  
+  removeSlipperyTile(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return;
+    const floorInfo = this.floorData[floor];
+    if (floorInfo && x >= 0 && x < floorInfo.width && y >= 0 && y < floorInfo.height) {
+      if (floorInfo.cells[y][x] === 2) {
+        floorInfo.cells[y][x] = 0;
+      }
     }
   }
 
@@ -304,6 +342,8 @@ export class Player {
     this.isBumping = false;
     this.bumpProgress = 0;
     this.bumpDistance = 0.1;
+
+    this.isSlipping = false;
   }
 
   turnLeft() {
@@ -448,6 +488,28 @@ export class Player {
     this.lastUpdateTime = Date.now();
     return true;
   }
+  
+  startSlip(maze) {
+    if (this.isMoving || this.isTurning || this.isSlipping) return false;
+    
+    const dx = [0, 1, 0, -1][this.direction];
+    const dy = [-1, 0, 1, 0][this.direction];
+    const currentGridX = Math.floor(this.x);
+    const currentGridY = Math.floor(this.y);
+    const newGridX = currentGridX + dx;
+    const newGridY = currentGridY + dy;
+    
+    if (maze.canMoveTo(newGridX, newGridY)) {
+      this.targetX = newGridX + 0.5;
+      this.targetY = newGridY + 0.5;
+      this.isSlipping = true;
+      this.isMoving = true;
+      this.lastUpdateTime = Date.now();
+      return true;
+    }
+    
+    return false;
+  }
 
   update(maze = null) {
     const currentTime = Date.now();
@@ -473,6 +535,16 @@ export class Player {
 
         if (maze) {
           maze.doorManager.closeDoorsNotAt(gridX, gridY, this.floor);
+          
+          if (maze.isSlippery(gridX, gridY, this.floor || 0)) {
+            this.isSlipping = false;
+            const slipped = this.startSlip(maze);
+            if (slipped) {
+              this.isSlipping = true;
+            }
+          } else {
+            this.isSlipping = false;
+          }
         }
       } else {
         const moveRatio = moveProgress / distance;
