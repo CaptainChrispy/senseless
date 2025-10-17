@@ -837,8 +837,20 @@ export class MinimapRenderer {
       }
     }
     
-    const playerScreenX = (player.x - actualMinX) * this.scale;
-    const playerScreenY = (player.y - actualMinY) * this.scale;
+    // Calculate player position with bump animation
+    let renderX = player.x;
+    let renderY = player.y;
+    
+    if (player.isBumping) {
+      const bumpOffset = player.getBumpOffset();
+      const dx = [0, 1, 0, -1][Math.floor(player.direction)];
+      const dy = [-1, 0, 1, 0][Math.floor(player.direction)];
+      renderX += dx * bumpOffset;
+      renderY += dy * bumpOffset;
+    }
+    
+    const playerScreenX = (renderX - actualMinX) * this.scale;
+    const playerScreenY = (renderY - actualMinY) * this.scale;
     
     this.ctx.fillStyle = '#ffff00';
     this.ctx.beginPath();
