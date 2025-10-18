@@ -620,11 +620,29 @@ export default {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.9);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 2000;
+  
+  background-color: rgba(0, 0, 0, 0.85);
+  background-image: 
+    linear-gradient(45deg, rgba(17, 17, 17, 0.5) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(17, 17, 17, 0.5) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(17, 17, 17, 0.5) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(17, 17, 17, 0.5) 75%);
+  background-size: 40px 40px;
+  background-position: 0 0, 0 20px, 20px -20px, -20px 0px;
+  animation: checkerboard-scroll 2s linear infinite;
+}
+
+@keyframes checkerboard-scroll {
+  0% {
+    background-position: 0 0, 0 20px, 20px -20px, -20px 0px;
+  }
+  100% {
+    background-position: -40px 40px, -40px 60px, -20px 20px, -60px 40px;
+  }
 }
 
 .admin-panel {
@@ -636,6 +654,19 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  
+  animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .admin-header {
