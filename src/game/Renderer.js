@@ -80,8 +80,40 @@ export class MazeRenderer {
   }
 
   drawFloor() {
-    this.ctx.fillStyle = this.colors.floor;
-    this.ctx.fillRect(0, this.height / 2, this.width, this.height / 2);
+    const halfHeight = this.height / 2;
+    const fogColor = this.hexToRgb(this.colors.sky);
+    const floorColor = this.hexToRgb(this.colors.floor);
+    const ceilingColor = this.hexToRgb(this.colors.ceiling);
+    
+    for (let y = 0; y < this.height; y++) {
+      const isCeiling = y < halfHeight;
+      const screenY = isCeiling ? halfHeight - y : y - halfHeight;
+      
+      const rowDistance = (this.height / 2) / (screenY + 1);
+      const depth = Math.min(this.viewDistance, halfHeight / (screenY + 0.1));
+      
+      let fogIntensity = 0;
+      if (depth > this.fogStart) {
+        fogIntensity = Math.min(1, (depth - this.fogStart) / (this.viewDistance - this.fogStart));
+      }
+      
+      const baseColor = isCeiling ? ceilingColor : floorColor;
+      const r = Math.floor(baseColor.r * (1 - fogIntensity) + fogColor.r * fogIntensity);
+      const g = Math.floor(baseColor.g * (1 - fogIntensity) + fogColor.g * fogIntensity);
+      const b = Math.floor(baseColor.b * (1 - fogIntensity) + fogColor.b * fogIntensity);
+      
+      this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      this.ctx.fillRect(0, y, this.width, 1);
+    }
+  }
+  
+  hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 };
   }
 
   drawWalls(maze, player) {
