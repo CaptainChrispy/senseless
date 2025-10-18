@@ -1,4 +1,5 @@
 import { getBiomeTextures } from './TextureManager.js';
+import { SnowEffect } from './WeatherEffects.js';
 
 export class MazeRenderer {
   constructor(canvas, textureManager) {
@@ -25,6 +26,8 @@ export class MazeRenderer {
       ceiling: '#222222',
       sky: '#111144'
     };
+    
+    this.snowEffect = new SnowEffect(canvas);
   }
 
   setBiome(biomeName) {
@@ -48,6 +51,23 @@ export class MazeRenderer {
     this.drawWalls(maze, player);
     this.drawDoors(maze, player);
     this.drawNPCs(maze, player);
+    
+    this.snowEffect.render(player, this.fov);
+  }
+  
+  update(player, deltaTime) {
+    this.snowEffect.update(player, deltaTime);
+  }
+  
+  toggleSnow(player = null) {
+    if (this.snowEffect.enabled) {
+      this.snowEffect.disable();
+    } else {
+      this.snowEffect.enable();
+      if (player) {
+        this.snowEffect.initialize(player);
+      }
+    }
   }
 
   clearScreen() {
@@ -701,6 +721,8 @@ export class MinimapRenderer {
     const actualMinX = Math.max(0, maxX - this.viewSize);
     const actualMinY = Math.max(0, maxY - this.viewSize);
     
+    const playerFloor = player.floor || 0;
+    
     for (let y = actualMinY; y < maxY; y++) {
       for (let x = actualMinX; x < maxX; x++) {
         const screenX = (x - actualMinX) * this.scale;
@@ -708,6 +730,8 @@ export class MinimapRenderer {
         
         if (maze.isWall(x, y)) {
           this.ctx.fillStyle = '#666666';
+        } else if (maze.isSlippery(x, y, playerFloor)) {
+          this.ctx.fillStyle = '#0088aa';
         } else {
           this.ctx.fillStyle = '#222222';
         }
@@ -792,7 +816,6 @@ export class MinimapRenderer {
       }
     }
     
-    const playerFloor = player.floor || 0;
     const doors = maze.doorManager.getDoorsOnFloor(playerFloor);
     for (let door of doors) {
       if (!door.showOnMinimap) continue;

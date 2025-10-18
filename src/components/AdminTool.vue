@@ -75,6 +75,20 @@
                 value="empty"
               /> Remove Walls
             </label>
+            <label>
+              <input 
+                v-model="editMode" 
+                type="radio" 
+                value="slippery"
+              /> Add Slippery Tile
+            </label>
+            <label>
+              <input 
+                v-model="editMode" 
+                type="radio" 
+                value="removeSlippery"
+              /> Remove Slippery
+            </label>
 
             <label>
               <input 
@@ -263,9 +277,14 @@ export default {
           const screenY = y * cellSize
           
           // Determine cell color
+          const cellType = currentMaze.value.getCellType(x, y, floor)
           let fillColor = '#333'
-          if (currentMaze.value.isWall(x, y, floor)) {
+          if (cellType === 1) {
+            // Wall
             fillColor = '#666'
+          } else if (cellType === 2) {
+            // Slippery tile
+            fillColor = '#0088aa'
           }
           
           if (currentMaze.value.hasStairs(x, y, floor)) {
@@ -282,6 +301,18 @@ export default {
           
           ctx.fillStyle = fillColor
           ctx.fillRect(screenX, screenY, cellSize, cellSize)
+          
+          // Draw ice pattern for slippery tiles
+          if (cellType === 2) {
+            ctx.strokeStyle = '#00ccff'
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.moveTo(screenX + cellSize * 0.2, screenY + cellSize * 0.5)
+            ctx.lineTo(screenX + cellSize * 0.8, screenY + cellSize * 0.5)
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.2)
+            ctx.lineTo(screenX + cellSize * 0.5, screenY + cellSize * 0.8)
+            ctx.stroke()
+          }
           
           // Draw grid lines
           ctx.strokeStyle = '#555'
@@ -345,6 +376,13 @@ export default {
         case 'empty':
           currentMaze.value.removeWall(x, y, floor)
           currentMaze.value.removeStairs(x, y, floor)
+          break
+        case 'slippery':
+          currentMaze.value.removeWall(x, y, floor)
+          currentMaze.value.addSlipperyTile(x, y, floor)
+          break
+        case 'removeSlippery':
+          currentMaze.value.removeSlipperyTile(x, y, floor)
           break
         case 'start':
           currentMaze.value.startPosition = { x, y, floor }

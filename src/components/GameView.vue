@@ -225,6 +225,14 @@ export default {
       maze.value.addWall(9, 4)
       maze.value.addWall(9, 5)
       
+      maze.value.addSlipperyTile(2, 1, 0)
+      maze.value.addSlipperyTile(2, 2, 0)
+      maze.value.addSlipperyTile(4, 4, 0)
+      maze.value.addSlipperyTile(4, 5, 0)
+      maze.value.addSlipperyTile(7, 3, 0)
+      maze.value.addSlipperyTile(8, 5, 0)
+      maze.value.addSlipperyTile(8, 6, 0)
+      
       maze.value.addDoor(4, 3, 0, 0, {
         locked: false,
         showOnMinimap: true
@@ -439,6 +447,11 @@ export default {
         case 'arrowright':
           turnRight()
           break
+        case 'n':
+          if (mazeRenderer) {
+            mazeRenderer.toggleSnow(player);
+          }
+          break
       }
     }
     
@@ -459,6 +472,10 @@ export default {
       const prevIsBumping = player.isBumping;
       // Update player
       const stillUpdating = player.update(maze.value);
+
+      if (mazeRenderer) {
+        mazeRenderer.update(player, deltaTime);
+      }
       
       const stateChanged = stillUpdating ||
         player.x !== prevX ||
@@ -469,7 +486,9 @@ export default {
         player.isBumping !== prevIsBumping;
 
       
-      if (stateChanged) {
+      const hasWeatherEffects = mazeRenderer && mazeRenderer.snowEffect.enabled;
+      
+      if (stateChanged || hasWeatherEffects) {
         render()
       }
       animationFrameId = requestAnimationFrame(gameLoop)

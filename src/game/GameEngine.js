@@ -110,7 +110,6 @@ export class Maze {
     if (!floorInfo || x < 0 || x >= floorInfo.width || y < 0 || y >= floorInfo.height) {
       return false;
     }
-    // Can move to empty space (0) or slippery tiles (2)
     const cellValue = floorInfo.cells[y][x];
     return cellValue === 0 || cellValue === 2;
   }
