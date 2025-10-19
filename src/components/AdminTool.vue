@@ -169,8 +169,10 @@
             ref="editorCanvas"
             :width="currentFloorWidth * cellSize"
             :height="currentFloorHeight * cellSize"
-            @click="handleCanvasClick"
-            @mousemove="handleCanvasHover"
+            @mousedown="handleCanvasMouseDown"
+            @mousemove="handleCanvasMouseMove"
+            @mouseup="handleCanvasMouseUp"
+            @mouseleave="handleCanvasMouseUp"
             class="editor-canvas"
           ></canvas>
         </div>
@@ -215,6 +217,10 @@ export default {
     const currentMaze = ref(new Maze(props.maze.width, props.maze.height, props.maze.biome || 'DUNGEON', props.maze.numFloors || 1))
     
     let ctx = null
+    let isDrawing = false
+    let lastPaintedCell = null
+    let lastPaintedCoords = null // Track actual x,y for line interpolation
+    let rafId = null
     
     const currentFloorWidth = computed(() => currentMaze.value.getFloorWidth(currentFloor.value))
     const currentFloorHeight = computed(() => currentMaze.value.getFloorHeight(currentFloor.value))
@@ -262,6 +268,8 @@ export default {
     }
     
     const renderEditor = () => {
+      if (!editorCanvas.value) return
+      ctx = editorCanvas.value.getContext('2d')
       if (!ctx) return
       
       ctx.clearRect(0, 0, editorCanvas.value.width, editorCanvas.value.height)
@@ -353,53 +361,64 @@ export default {
 
     }
     
-    const handleCanvasClick = (event) => {
-      const rect = editorCanvas.value.getBoundingClientRect()
-      const clickX = event.clientX - rect.left
-      const clickY = event.clientY - rect.top
-      
-      const floor = currentFloor.value
-      const floorWidth = currentFloorWidth.value
-      const floorHeight = currentFloorHeight.value
-      
-      const x = Math.floor(clickX / cellSize)
-      const y = Math.floor(clickY / cellSize)
-      
-      if (x < 0 || x >= floorWidth || y < 0 || y >= floorHeight) {
-        return
+    const paintCell = (x, y, floor) => {
+      // Validate floor bounds
+      if (floor < 0 || floor >= currentMaze.value.numFloors) {
+        console.warn(`Invalid floor: ${floor}`)
+        return false
       }
+      
+      // Single-click operations that should bypass cache for better UX
+      const singleClickModes = ['start', 'exit', 'door', 'removeDoor']
+      const isSingleClickMode = singleClickModes.includes(editMode.value)
+      
+      // Check if we already painted this cell (skip for single-click operations)
+      const cellKey = `${x},${y}`
+      if (!isSingleClickMode && lastPaintedCell === cellKey) {
+        return false
+      }
+      
+      let didPaint = false
       
       switch (editMode.value) {
         case 'wall':
           currentMaze.value.addWall(x, y, floor)
+          didPaint = true
           break
         case 'empty':
           currentMaze.value.removeWall(x, y, floor)
           currentMaze.value.removeStairs(x, y, floor)
+          didPaint = true
           break
         case 'slippery':
           currentMaze.value.removeWall(x, y, floor)
           currentMaze.value.addSlipperyTile(x, y, floor)
+          didPaint = true
           break
         case 'removeSlippery':
           currentMaze.value.removeSlipperyTile(x, y, floor)
+          didPaint = true
           break
         case 'start':
           currentMaze.value.startPosition = { x, y, floor }
+          didPaint = true
           break
         case 'exit':
           currentMaze.value.exitPosition = { x, y, floor }
+          didPaint = true
           break
         case 'stairsUp':
           if (floor < currentMaze.value.numFloors - 1) {
             currentMaze.value.removeWall(x, y, floor)
             currentMaze.value.addStairs(x, y, floor, floor + 1, x, y)
+            didPaint = true
           }
           break
         case 'stairsDown':
           if (floor > 0) {
             currentMaze.value.removeWall(x, y, floor)
             currentMaze.value.addStairs(x, y, floor, floor - 1, x, y)
+            didPaint = true
           }
           break
         case 'door':
@@ -407,17 +426,126 @@ export default {
             locked: doorLocked.value,
             showOnMinimap: true
           })
+          didPaint = true
           break
         case 'removeDoor':
           currentMaze.value.removeDoor(x, y, floor, doorDirection.value)
+          didPaint = true
           break
       }
       
-      renderEditor()
+      if (didPaint && !isSingleClickMode) {
+        lastPaintedCell = cellKey
+      }
+      
+      return didPaint
     }
     
-    const handleCanvasHover = (event) => {
-      // Add visual feedback for hover (optional)
+    const getCellFromMouseEvent = (event) => {
+      const rect = editorCanvas.value.getBoundingClientRect()
+      const clickX = event.clientX - rect.left
+      const clickY = event.clientY - rect.top
+      
+      const x = Math.floor(clickX / cellSize)
+      const y = Math.floor(clickY / cellSize)
+      
+      const floor = currentFloor.value
+      const floorWidth = currentFloorWidth.value
+      const floorHeight = currentFloorHeight.value
+      
+      if (x >= 0 && x < floorWidth && y >= 0 && y < floorHeight) {
+        return { x, y, floor, valid: true }
+      }
+      
+      return { valid: false }
+    }
+    
+    // Bresenham's line algorithm to fill gaps when painting fast
+    const getLineCells = (x0, y0, x1, y1) => {
+      const cells = []
+      const dx = Math.abs(x1 - x0)
+      const dy = Math.abs(y1 - y0)
+      const sx = x0 < x1 ? 1 : -1
+      const sy = y0 < y1 ? 1 : -1
+      let err = dx - dy
+      
+      let x = x0
+      let y = y0
+      
+      while (true) {
+        cells.push({ x, y })
+        
+        if (x === x1 && y === y1) break
+        
+        const e2 = 2 * err
+        if (e2 > -dy) {
+          err -= dy
+          x += sx
+        }
+        if (e2 < dx) {
+          err += dx
+          y += sy
+        }
+      }
+      
+      return cells
+    }
+    
+    const handleCanvasMouseDown = (event) => {
+      isDrawing = true
+      lastPaintedCell = null
+      lastPaintedCoords = null
+      
+      const cell = getCellFromMouseEvent(event)
+      if (cell.valid && paintCell(cell.x, cell.y, cell.floor)) {
+        lastPaintedCoords = { x: cell.x, y: cell.y }
+        renderEditor()
+      }
+    }
+    
+    const handleCanvasMouseMove = (event) => {
+      if (!isDrawing) return
+      
+      const cell = getCellFromMouseEvent(event)
+      if (!cell.valid) return
+      
+      let needsRender = false
+      
+      // If we have a previous position, draw a line between them
+      if (lastPaintedCoords && (lastPaintedCoords.x !== cell.x || lastPaintedCoords.y !== cell.y)) {
+        const lineCells = getLineCells(lastPaintedCoords.x, lastPaintedCoords.y, cell.x, cell.y)
+        
+        for (const lineCell of lineCells) {
+          if (paintCell(lineCell.x, lineCell.y, cell.floor)) {
+            needsRender = true
+          }
+        }
+        
+        lastPaintedCoords = { x: cell.x, y: cell.y }
+      } else if (!lastPaintedCoords) {
+        // First move after mousedown
+        if (paintCell(cell.x, cell.y, cell.floor)) {
+          needsRender = true
+        }
+        lastPaintedCoords = { x: cell.x, y: cell.y }
+      }
+      
+      if (needsRender) {
+        // Debounce render with requestAnimationFrame
+        if (rafId) cancelAnimationFrame(rafId)
+        rafId = requestAnimationFrame(() => renderEditor())
+      }
+    }
+    
+    const handleCanvasMouseUp = () => {
+      isDrawing = false
+      lastPaintedCell = null
+      lastPaintedCoords = null
+      // Cancel any pending render
+      if (rafId) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
     }
     
     const updateFloors = () => {
@@ -596,8 +724,11 @@ export default {
       currentMaze,
       currentFloorWidth,
       currentFloorHeight,
-      handleCanvasClick,
-      handleCanvasHover,
+      handleCanvasMouseDown,
+      handleCanvasMouseMove,
+      handleCanvasMouseUp,
+      doorDirection,
+      doorLocked,
       resizeMaze,
       resizeCurrentFloor,
       resizeAllFloors,
@@ -633,7 +764,7 @@ export default {
     linear-gradient(-45deg, transparent 75%, rgba(17, 17, 17, 0.5) 75%);
   background-size: 40px 40px;
   background-position: 0 0, 0 20px, 20px -20px, -20px 0px;
-  animation: checkerboard-scroll 2s linear infinite;
+  animation: checkerboard-scroll 2s linear infinite, overlay-fade-in 0.3s ease-out;
 }
 
 @keyframes checkerboard-scroll {
@@ -642,6 +773,15 @@ export default {
   }
   100% {
     background-position: -40px 40px, -40px 60px, -20px 20px, -60px 40px;
+  }
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
