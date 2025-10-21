@@ -6,164 +6,236 @@
         <button @click="$emit('close')" class="close-btn">×</button>
       </div>
       
-      <div class="admin-content">
-        <div class="admin-controls">
-          <div class="control-group">
-            <h3>Maze Settings</h3>
-            <label>
-              Width: 
-              <input 
-                v-model.number="mazeWidth" 
-                type="number" 
-                min="5" 
-                max="30"
-                @change="resizeMaze"
-              />
-            </label>
-            <label>
-              Height: 
-              <input 
-                v-model.number="mazeHeight" 
-                type="number" 
-                min="5" 
-                max="30"
-                @change="resizeCurrentFloor"
-              />
-            </label>
-            <label>
-              Floors: 
-              <input 
-                v-model.number="numFloors" 
-                type="number" 
-                min="1" 
-                max="10"
-                @change="updateFloors"
-              />
-            </label>
-            <label>
-              Current Floor: 
-              <select v-model.number="currentFloor">
-                <option v-for="f in numFloors" :key="f-1" :value="f-1">
-                  Floor {{ f }}
-                </option>
-              </select>
-            </label>
-            <p class="floor-info">Floor {{ currentFloor + 1 }} size: {{ currentFloorWidth }} x {{ currentFloorHeight }}</p>
-            <label>
-              Biome:
-              <select v-model="selectedBiome" @change="changeBiome">
-                <option v-for="biome in biomeOptions" :key="biome" :value="biome">
-                  {{ biome.replace(/_/g, ' ') }}
-                </option>
-              </select>
-            </label>
-          </div>
-          
-          <div class="control-group">
-            <h3>Edit Mode</h3>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="wall"
-              /> Add Walls
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="empty"
-              /> Remove Walls
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="slippery"
-              /> Add Slippery Tile
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="removeSlippery"
-              /> Remove Slippery
-            </label>
-
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="start"
-              /> Set Start
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="exit"
-              /> Set Exit
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="stairsUp"
-              /> Stairs Up
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="stairsDown"
-              /> Stairs Down
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="door"
-              /> Add Door
-            </label>
-            <label>
-              <input 
-                v-model="editMode" 
-                type="radio" 
-                value="removeDoor"
-              /> Remove Door
-            </label>
-            <div v-if="editMode === 'door' || editMode === 'removeDoor'" class="door-options">
-              <label>
-                Door Direction:
-                <select v-model.number="doorDirection">
-                  <option :value="0">North Edge</option>
-                  <option :value="1">East Edge</option>
-                  <option :value="2">South Edge</option>
-                  <option :value="3">West Edge</option>
-                </select>
-              </label>
-              <label v-if="editMode === 'door'">
-                <input v-model="doorLocked" type="checkbox" /> Locked
-              </label>
-            </div>
-          </div>
-          
-          <div class="control-group">
-            <h3>Actions</h3>
-            <button @click="clearMaze" class="action-btn">Clear All</button>
-            <button @click="generateMaze" class="action-btn">Generate Random</button>
-            <button @click="exportMaze" class="action-btn">Export JSON</button>
-            <input 
-              ref="fileInput"
-              type="file" 
-              accept=".json"
-              @change="importMaze"
-              style="display: none"
-            />
-            <button @click="$refs.fileInput.click()" class="action-btn">Import JSON</button>
+      <div class="toolbar">
+        <div class="toolbar-section">
+          <label class="toolbar-label">Tools</label>
+          <div class="tool-buttons-group">
+            <button 
+              @click="editMode = 'wall'" 
+              :class="{ active: editMode === 'wall' }"
+              class="tool-btn"
+              title="Paint Brush"
+            >
+              <div class="tool-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="tool-label">Brush</div>
+            </button>
+            <button 
+              @click="editMode = 'empty'" 
+              :class="{ active: editMode === 'empty' }"
+              class="tool-btn"
+              title="Eraser"
+            >
+              <div class="tool-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="tool-label">Eraser</div>
+            </button>
           </div>
         </div>
-        
+
+        <div class="toolbar-section">
+          <label class="toolbar-label">Palette</label>
+          <div class="tool-buttons-group">
+            <button 
+              @click="editMode = 'wall'" 
+              :class="{ active: editMode === 'wall' }"
+              class="palette-btn wall-btn"
+              title="Wall"
+            >
+              <div class="palette-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="palette-label">Wall</div>
+            </button>
+            <button 
+              @click="editMode = 'slippery'" 
+              :class="{ active: editMode === 'slippery' }"
+              class="palette-btn slippery-btn"
+              title="Slippery Tile"
+            >
+              <div class="palette-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="palette-label">Ice</div>
+            </button>
+            <button 
+              @click="editMode = 'door'" 
+              :class="{ active: editMode === 'door' }"
+              class="palette-btn door-btn"
+              title="Door"
+            >
+              <div class="palette-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="palette-label">Door</div>
+            </button>
+            <button 
+              @click="editMode = 'start'" 
+              :class="{ active: editMode === 'start' }"
+              class="palette-btn start-btn"
+              title="Start Position"
+            >
+              <div class="palette-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="palette-label">Start</div>
+            </button>
+            <button 
+              @click="editMode = 'exit'" 
+              :class="{ active: editMode === 'exit' }"
+              class="palette-btn exit-btn"
+              title="Exit Position"
+            >
+              <div class="palette-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="palette-label">Exit</div>
+            </button>
+            <button 
+              @click="editMode = 'stairsUp'" 
+              :class="{ active: editMode === 'stairsUp' }"
+              class="palette-btn stairs-up-btn"
+              title="Stairs Up"
+            >
+              <div class="palette-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="palette-label">Up</div>
+            </button>
+            <button 
+              @click="editMode = 'stairsDown'" 
+              :class="{ active: editMode === 'stairsDown' }"
+              class="palette-btn stairs-down-btn"
+              title="Stairs Down"
+            >
+              <div class="palette-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="palette-label">Down</div>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="editMode === 'door' || editMode === 'removeDoor'" class="toolbar-section">
+          <label class="toolbar-label">Door</label>
+          <select v-model.number="doorDirection" class="toolbar-select">
+            <option :value="0">North</option>
+            <option :value="1">East</option>
+            <option :value="2">South</option>
+            <option :value="3">West</option>
+          </select>
+          <label v-if="editMode === 'door'" class="toolbar-checkbox">
+            <input v-model="doorLocked" type="checkbox" /> Locked
+          </label>
+        </div>
+
+        <div class="toolbar-section">
+          <label class="toolbar-label">Floor</label>
+          <select v-model.number="currentFloor" class="toolbar-select">
+            <option v-for="f in numFloors" :key="f-1" :value="f-1">
+              Floor {{ f }}
+            </option>
+          </select>
+        </div>
+
+        <div class="toolbar-section">
+          <label class="toolbar-label">Width</label>
+          <input 
+            v-model.number="mazeWidth" 
+            type="number" 
+            min="5" 
+            max="30"
+            @change="resizeMaze"
+            class="toolbar-input"
+          />
+        </div>
+
+        <div class="toolbar-section">
+          <label class="toolbar-label">Height</label>
+          <input 
+            v-model.number="mazeHeight" 
+            type="number" 
+            min="5" 
+            max="30"
+            @change="resizeCurrentFloor"
+            class="toolbar-input"
+          />
+        </div>
+
+        <div class="toolbar-section">
+          <label class="toolbar-label">Floors</label>
+          <input 
+            v-model.number="numFloors" 
+            type="number" 
+            min="1" 
+            max="10"
+            @change="updateFloors"
+            class="toolbar-input"
+          />
+        </div>
+
+        <div class="toolbar-section">
+          <label class="toolbar-label">Biome</label>
+          <select v-model="selectedBiome" @change="changeBiome" class="toolbar-select">
+            <option v-for="biome in biomeOptions" :key="biome" :value="biome">
+              {{ biome.replace(/_/g, ' ') }}
+            </option>
+          </select>
+        </div>
+
+        <!-- Actions -->
+        <div class="toolbar-section toolbar-actions">
+          <button @click="clearMaze" class="toolbar-action-btn" title="Clear All">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+              <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+            </svg>
+          </button>
+          <button @click="generateMaze" class="toolbar-action-btn" title="Generate Random Maze">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+              <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+            </svg>
+          </button>
+          <button @click="exportMaze" class="toolbar-action-btn" title="Export JSON">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+              <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+            </svg>
+          </button>
+          <input 
+            ref="fileInput"
+            type="file" 
+            accept=".json"
+            @change="importMaze"
+            style="display: none"
+          />
+          <button @click="$refs.fileInput.click()" class="toolbar-action-btn" title="Import JSON">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+              <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      
+      <div class="admin-content">
         <div class="maze-editor">
           <canvas 
             ref="editorCanvas"
@@ -300,7 +372,6 @@ export default {
             fillColor = stairs.targetFloor > floor ? '#00aaff' : '#ff8800' // Blue for up, Orange for down
           }
           
-          // Highlight start and exit positions
           if (x === currentMaze.value.startPosition.x && y === currentMaze.value.startPosition.y && floor === currentMaze.value.startPosition.floor) {
             fillColor = '#00ff00'
           } else if (x === currentMaze.value.exitPosition.x && y === currentMaze.value.exitPosition.y && floor === currentMaze.value.exitPosition.floor) {
@@ -310,7 +381,6 @@ export default {
           ctx.fillStyle = fillColor
           ctx.fillRect(screenX, screenY, cellSize, cellSize)
           
-          // Draw ice pattern for slippery tiles
           if (cellType === 2) {
             ctx.strokeStyle = '#00ccff'
             ctx.lineWidth = 2
@@ -362,13 +432,11 @@ export default {
     }
     
     const paintCell = (x, y, floor) => {
-      // Validate floor bounds
       if (floor < 0 || floor >= currentMaze.value.numFloors) {
         console.warn(`Invalid floor: ${floor}`)
         return false
       }
       
-      // Single-click operations that should bypass cache for better UX
       const singleClickModes = ['start', 'exit', 'door', 'removeDoor']
       const isSingleClickMode = singleClickModes.includes(editMode.value)
       
@@ -523,7 +591,6 @@ export default {
         
         lastPaintedCoords = { x: cell.x, y: cell.y }
       } else if (!lastPaintedCoords) {
-        // First move after mousedown
         if (paintCell(cell.x, cell.y, cell.floor)) {
           needsRender = true
         }
@@ -842,115 +909,195 @@ export default {
   border-radius: 4px;
 }
 
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  padding: 12px 20px;
+  background-color: #3a3a3a;
+  border-bottom: 2px solid #555;
+  align-items: center;
+}
+
+.toolbar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.toolbar-label {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.tool-buttons-group {
+  display: flex;
+  gap: 5px;
+}
+
+.tool-btn, .palette-btn {
+  width: 60px;
+  height: 50px;
+  border: 2px solid #555;
+  background-color: #2a2a2a;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: all 0.2s;
+  padding: 4px;
+}
+
+.tool-btn:hover, .palette-btn:hover {
+  background-color: #444;
+  border-color: #777;
+  transform: translateY(-2px);
+}
+
+.tool-btn.active, .palette-btn.active {
+  background-color: #4a7c59;
+  border-color: #5a8c69;
+  box-shadow: 0 0 10px rgba(74, 124, 89, 0.5);
+}
+
+.tool-icon, .palette-icon {
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-icon svg, .palette-icon svg {
+  display: block;
+}
+
+.tool-label, .palette-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+  color: #ccc;
+  line-height: 1;
+}
+
+.tool-btn.active .tool-label,
+.palette-btn.active .palette-label {
+  color: #fff;
+}
+
+.palette-btn {
+  position: relative;
+}
+
+/* Paint palette visual indicators */
+.wall-btn { background-color: #444; }
+.wall-btn.active { background-color: #555; border-color: #888; }
+
+.slippery-btn { background-color: #1a4a5a; }
+.slippery-btn.active { background-color: #2a6a8a; border-color: #4a9aca; }
+
+.door-btn { background-color: #5a4a2a; }
+.door-btn.active { background-color: #7a6a4a; border-color: #aaa; }
+
+.start-btn { background-color: #2a4a2a; }
+.start-btn.active { background-color: #3a6a3a; border-color: #5a9a5a; }
+
+.exit-btn { background-color: #4a2a2a; }
+.exit-btn.active { background-color: #6a3a3a; border-color: #9a5a5a; }
+
+.stairs-up-btn { background-color: #2a3a5a; }
+.stairs-up-btn.active { background-color: #3a5a7a; border-color: #5a8aaa; }
+
+.stairs-down-btn { background-color: #5a3a2a; }
+.stairs-down-btn.active { background-color: #7a5a3a; border-color: #aa8a5a; }
+
+.toolbar-select, .toolbar-input {
+  padding: 6px 10px;
+  background-color: #2a2a2a;
+  border: 1px solid #555;
+  color: #fff;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+  min-width: 80px;
+}
+
+.toolbar-input {
+  width: 60px;
+  text-align: center;
+}
+
+.toolbar-select:focus, .toolbar-input:focus {
+  outline: none;
+  border-color: #4a7c59;
+  box-shadow: 0 0 0 2px rgba(74, 124, 89, 0.3);
+}
+
+.toolbar-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #ccc;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.toolbar-checkbox input[type="checkbox"] {
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+}
+
+.toolbar-actions {
+  margin-left: auto;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.toolbar-action-btn {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #555;
+  background-color: #2a2a2a;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.toolbar-action-btn svg {
+  display: block;
+}
+
+.toolbar-action-btn:hover {
+  background-color: #444;
+  border-color: #777;
+  transform: translateY(-2px);
+}
+
+.toolbar-action-btn:active {
+  transform: translateY(0);
+}
+
 .admin-content {
   flex: 1;
   display: flex;
   overflow: hidden;
-}
-
-.admin-controls {
-  width: 300px;
-  padding: 20px;
-  background-color: #333;
-  border-right: 1px solid #555;
-  overflow-y: auto;
-}
-
-.control-group {
-  margin-bottom: 25px;
-}
-
-.control-group h3 {
-  margin: 0 0 10px 0;
-  color: #fff;
-  font-size: 16px;
-}
-
-.control-group label {
-  display: block;
-  margin: 8px 0;
-  color: #ccc;
-  font-size: 14px;
-}
-
-.control-group input[type="number"] {
-  width: 60px;
-  margin-left: 5px;
-  padding: 4px;
-  background-color: #444;
-  border: 1px solid #666;
-  color: #fff;
-}
-
-.control-group select {
-  width: 100%;
-  margin-top: 5px;
-  padding: 6px;
-  background-color: #444;
-  border: 1px solid #666;
-  color: #fff;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.control-group select option {
-  background-color: #444;
-  color: #fff;
-}
-
-.floor-info {
-  margin: 10px 0;
-  padding: 8px;
-  background-color: #333;
-  border-radius: 4px;
-  font-size: 12px;
-  color: #aaa;
-  text-align: center;
-}
-
-.control-group input[type="radio"] {
-  margin-right: 8px;
-}
-
-.door-options {
-  margin-left: 20px;
-  padding: 10px;
-  background-color: #3a3a3a;
-  border-radius: 4px;
-  margin-top: 8px;
-}
-
-.door-options label {
-  margin: 5px 0;
-}
-
-.door-options select {
-  width: 100%;
-  margin-top: 5px;
-  padding: 4px;
-  background-color: #444;
-  border: 1px solid #666;
-  color: #fff;
-}
-
-.door-options input[type="checkbox"] {
-  margin-right: 8px;
-}
-
-.action-btn {
-  display: block;
-  width: 100%;
-  margin: 8px 0;
-  padding: 10px;
-  background-color: #555;
-  border: 1px solid #777;
-  color: #fff;
-  cursor: pointer;
-  font-family: inherit;
-}
-
-.action-btn:hover {
-  background-color: #666;
+  background-color: #1a1a1a;
 }
 
 .maze-editor {
@@ -966,6 +1113,7 @@ export default {
   border: 2px solid #555;
   cursor: crosshair;
   background-color: #000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
 
 .admin-footer {
@@ -982,6 +1130,10 @@ export default {
   border: 1px solid #777;
   cursor: pointer;
   font-family: inherit;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
 }
 
 .apply-btn {
@@ -991,6 +1143,8 @@ export default {
 
 .apply-btn:hover {
   background-color: #5a8c69;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(74, 124, 89, 0.4);
 }
 
 .cancel-btn {
@@ -1000,5 +1154,6 @@ export default {
 
 .cancel-btn:hover {
   background-color: #777;
+  transform: translateY(-1px);
 }
 </style>
