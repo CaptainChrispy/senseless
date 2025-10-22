@@ -36,6 +36,29 @@
               </div>
               <div class="tool-label">Eraser</div>
             </button>
+            <button 
+              @click="editMode = 'pan'" 
+              :class="{ active: editMode === 'pan' }"
+              class="tool-btn"
+              title="Pan Tool (Space to hold temporarily)"
+            >
+              <div class="tool-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
+                  <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
+                </svg>
+              </div>
+              <div class="tool-label">Hand</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar-section">
+          <label class="toolbar-label">View</label>
+          <div class="zoom-controls">
+            <button @click="zoomOut" class="zoom-btn" title="Zoom Out">−</button>
+            <span class="zoom-display">{{ Math.round(zoom * 100) }}%</span>
+            <button @click="zoomIn" class="zoom-btn" title="Zoom In">+</button>
+            <button @click="resetView" class="zoom-btn" title="Reset View">⟲</button>
           </div>
         </div>
 
@@ -236,7 +259,7 @@
       </div>
       
       <div class="admin-content">
-        <div class="maze-editor">
+        <div class="maze-editor" ref="mazeEditorContainer">
           <canvas 
             ref="editorCanvas"
             :width="currentFloorWidth * cellSize"
@@ -245,7 +268,9 @@
             @mousemove="handleCanvasMouseMove"
             @mouseup="handleCanvasMouseUp"
             @mouseleave="handleCanvasMouseUp"
-            class="editor-canvas"
+            @wheel="handleCanvasWheel"
+            :class="['editor-canvas', { 'cursor-pan': editMode === 'pan' || isPanning }]"
+            :style="canvasStyle"
           ></canvas>
         </div>
       </div>
@@ -259,7 +284,7 @@
 </template>
 
 <script>
-import { ref, onMounted, watch, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { Maze } from '../game/GameEngine.js'
 import { getBiomeNames } from '../game/TextureManager.js'
 
@@ -275,6 +300,7 @@ export default {
   setup(props, { emit }) {
     const editorCanvas = ref(null)
     const fileInput = ref(null)
+    const mazeEditorContainer = ref(null)
     
     const mazeWidth = ref(props.maze.width)
     const mazeHeight = ref(props.maze.height)
@@ -288,6 +314,14 @@ export default {
     const cellSize = 20
     const currentMaze = ref(new Maze(props.maze.width, props.maze.height, props.maze.biome || 'DUNGEON', props.maze.numFloors || 1))
     
+    const zoom = ref(1)
+    const panX = ref(0)
+    const panY = ref(0)
+    const isPanning = ref(false)
+    const lastPanX = ref(0)
+    const lastPanY = ref(0)
+    const tempPanMode = ref(false)
+    
     let ctx = null
     let isDrawing = false
     let lastPaintedCell = null
@@ -296,6 +330,11 @@ export default {
     
     const currentFloorWidth = computed(() => currentMaze.value.getFloorWidth(currentFloor.value))
     const currentFloorHeight = computed(() => currentMaze.value.getFloorHeight(currentFloor.value))
+    
+    const canvasStyle = computed(() => ({
+      transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoom.value})`,
+      transformOrigin: '0 0'
+    }))
     
     watch(currentFloor, () => {
       mazeWidth.value = currentFloorWidth.value
@@ -510,12 +549,25 @@ export default {
     }
     
     const getCellFromMouseEvent = (event) => {
-      const rect = editorCanvas.value.getBoundingClientRect()
-      const clickX = event.clientX - rect.left
-      const clickY = event.clientY - rect.top
+      const canvas = editorCanvas.value
+      if (!canvas) return { valid: false }
       
-      const x = Math.floor(clickX / cellSize)
-      const y = Math.floor(clickY / cellSize)
+      const rect = canvas.getBoundingClientRect()
+      
+      const mouseX = event.clientX
+      const mouseY = event.clientY
+      
+      const canvasLeft = rect.left
+      const canvasTop = rect.top
+      
+      const relX = mouseX - canvasLeft
+      const relY = mouseY - canvasTop
+      
+      const canvasX = relX / zoom.value
+      const canvasY = relY / zoom.value
+      
+      const x = Math.floor(canvasX / cellSize)
+      const y = Math.floor(canvasY / cellSize)
       
       const floor = currentFloor.value
       const floorWidth = currentFloorWidth.value
@@ -560,6 +612,15 @@ export default {
     }
     
     const handleCanvasMouseDown = (event) => {
+      const currentMode = tempPanMode.value ? 'pan' : editMode.value
+      
+      if (currentMode === 'pan') {
+        isPanning.value = true
+        lastPanX.value = event.clientX
+        lastPanY.value = event.clientY
+        return
+      }
+      
       isDrawing = true
       lastPaintedCell = null
       lastPaintedCoords = null
@@ -572,6 +633,18 @@ export default {
     }
     
     const handleCanvasMouseMove = (event) => {
+      if (isPanning.value) {
+        const dx = event.clientX - lastPanX.value
+        const dy = event.clientY - lastPanY.value
+        
+        panX.value += dx
+        panY.value += dy
+        
+        lastPanX.value = event.clientX
+        lastPanY.value = event.clientY
+        return
+      }
+      
       if (!isDrawing) return
       
       const cell = getCellFromMouseEvent(event)
@@ -605,6 +678,7 @@ export default {
     }
     
     const handleCanvasMouseUp = () => {
+      isPanning.value = false
       isDrawing = false
       lastPaintedCell = null
       lastPaintedCoords = null
@@ -769,8 +843,63 @@ export default {
       emit('close')
     }
     
+    const handleCanvasWheel = (event) => {
+      event.preventDefault()
+      
+      const rect = editorCanvas.value.getBoundingClientRect()
+      const mouseX = event.clientX - rect.left
+      const mouseY = event.clientY - rect.top
+      
+      const canvasX = (mouseX - panX.value) / zoom.value
+      const canvasY = (mouseY - panY.value) / zoom.value
+      
+      const zoomDelta = event.deltaY > 0 ? 0.9 : 1.1
+      const newZoom = Math.max(0.1, Math.min(5, zoom.value * zoomDelta))
+      
+      panX.value = mouseX - canvasX * newZoom
+      panY.value = mouseY - canvasY * newZoom
+      
+      zoom.value = newZoom
+    }
+    
+    const zoomIn = () => {
+      zoom.value = Math.min(5, zoom.value * 1.2)
+    }
+    
+    const zoomOut = () => {
+      zoom.value = Math.max(0.1, zoom.value / 1.2)
+    }
+    
+    const resetView = () => {
+      zoom.value = 1
+      panX.value = 0
+      panY.value = 0
+    }
+    
+    const handleKeyDown = (event) => {
+      if (event.code === 'Space' && !tempPanMode.value) {
+        event.preventDefault()
+        tempPanMode.value = true
+      }
+    }
+    
+    const handleKeyUp = (event) => {
+      if (event.code === 'Space') {
+        event.preventDefault()
+        tempPanMode.value = false
+        isPanning.value = false
+      }
+    }
+    
     onMounted(() => {
       initializeEditor()
+      window.addEventListener('keydown', handleKeyDown)
+      window.addEventListener('keyup', handleKeyUp)
+    })
+    
+    onUnmounted(() => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
     })
     
     watch(() => props.maze, () => {
@@ -780,6 +909,7 @@ export default {
     return {
       editorCanvas,
       fileInput,
+      mazeEditorContainer,
       mazeWidth,
       mazeHeight,
       numFloors,
@@ -794,6 +924,7 @@ export default {
       handleCanvasMouseDown,
       handleCanvasMouseMove,
       handleCanvasMouseUp,
+      handleCanvasWheel,
       doorDirection,
       doorLocked,
       resizeMaze,
@@ -805,7 +936,15 @@ export default {
       generateMaze,
       exportMaze,
       importMaze,
-      applyChanges
+      applyChanges,
+      zoom,
+      panX,
+      panY,
+      isPanning,
+      canvasStyle,
+      zoomIn,
+      zoomOut,
+      resetView
     }
   }
 }
@@ -1019,6 +1158,52 @@ export default {
 .stairs-down-btn { background-color: #5a3a2a; }
 .stairs-down-btn.active { background-color: #7a5a3a; border-color: #aa8a5a; }
 
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 4px;
+}
+
+.zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #555;
+  background-color: #333;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+.zoom-btn:hover {
+  background-color: #444;
+  border-color: #777;
+}
+
+.zoom-btn:active {
+  transform: scale(0.95);
+}
+
+.zoom-display {
+  min-width: 50px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+  padding: 0 4px;
+}
+
 .toolbar-select, .toolbar-input {
   padding: 6px 10px;
   background-color: #2a2a2a;
@@ -1107,6 +1292,7 @@ export default {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  position: relative;
 }
 
 .editor-canvas {
@@ -1114,6 +1300,15 @@ export default {
   cursor: crosshair;
   background-color: #000;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s ease-out;
+}
+
+.editor-canvas.cursor-pan {
+  cursor: grab;
+}
+
+.editor-canvas.cursor-pan:active {
+  cursor: grabbing;
 }
 
 .admin-footer {
