@@ -267,7 +267,7 @@
             @mousedown="handleCanvasMouseDown"
             @mousemove="handleCanvasMouseMove"
             @mouseup="handleCanvasMouseUp"
-            @mouseleave="handleCanvasMouseUp"
+            @mouseleave="handleCanvasMouseLeave"
             @wheel="handleCanvasWheel"
             :class="['editor-canvas', { 'cursor-pan': editMode === 'pan' || isPanning }]"
             :style="canvasStyle"
@@ -321,6 +321,9 @@ export default {
     const lastPanX = ref(0)
     const lastPanY = ref(0)
     const tempPanMode = ref(false)
+    
+    // Preview state
+    const previewCell = ref(null) // { x, y, floor }
     
     let ctx = null
     let isDrawing = false
@@ -468,9 +471,127 @@ export default {
         ctx.stroke()
       }
 
+      // Draw preview overlay
+      if (previewCell.value && previewCell.value.floor === floor && editMode.value !== 'pan' && !isPanning.value) {
+        const px = previewCell.value.x
+        const py = previewCell.value.y
+        const screenX = px * cellSize
+        const screenY = py * cellSize
+        
+        // Draw semi-transparent overlay based on edit mode
+        ctx.save()
+        ctx.globalAlpha = 0.5
+        
+        switch (editMode.value) {
+          case 'wall':
+            ctx.fillStyle = '#999'
+            ctx.fillRect(screenX, screenY, cellSize, cellSize)
+            break
+          case 'empty':
+            ctx.fillStyle = '#222'
+            ctx.fillRect(screenX, screenY, cellSize, cellSize)
+            // Draw X to indicate deletion
+            ctx.strokeStyle = '#ff0000'
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.moveTo(screenX + 3, screenY + 3)
+            ctx.lineTo(screenX + cellSize - 3, screenY + cellSize - 3)
+            ctx.moveTo(screenX + cellSize - 3, screenY + 3)
+            ctx.lineTo(screenX + 3, screenY + cellSize - 3)
+            ctx.stroke()
+            break
+          case 'slippery':
+            ctx.fillStyle = '#00ccff'
+            ctx.fillRect(screenX, screenY, cellSize, cellSize)
+            // Draw ice pattern
+            ctx.globalAlpha = 1
+            ctx.strokeStyle = '#ffffff'
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.moveTo(screenX + cellSize * 0.2, screenY + cellSize * 0.5)
+            ctx.lineTo(screenX + cellSize * 0.8, screenY + cellSize * 0.5)
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.2)
+            ctx.lineTo(screenX + cellSize * 0.5, screenY + cellSize * 0.8)
+            ctx.stroke()
+            break
+          case 'start':
+            ctx.fillStyle = '#00ff00'
+            ctx.fillRect(screenX, screenY, cellSize, cellSize)
+            break
+          case 'exit':
+            ctx.fillStyle = '#ff0000'
+            ctx.fillRect(screenX, screenY, cellSize, cellSize)
+            break
+          case 'stairsUp':
+            ctx.fillStyle = '#00aaff'
+            ctx.fillRect(screenX, screenY, cellSize, cellSize)
+            // Draw up arrow
+            ctx.globalAlpha = 1
+            ctx.strokeStyle = '#ffffff'
+            ctx.fillStyle = '#ffffff'
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.3)
+            ctx.lineTo(screenX + cellSize * 0.3, screenY + cellSize * 0.5)
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.3)
+            ctx.lineTo(screenX + cellSize * 0.7, screenY + cellSize * 0.5)
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.3)
+            ctx.lineTo(screenX + cellSize * 0.5, screenY + cellSize * 0.7)
+            ctx.stroke()
+            break
+          case 'stairsDown':
+            ctx.fillStyle = '#ff8800'
+            ctx.fillRect(screenX, screenY, cellSize, cellSize)
+            // Draw down arrow
+            ctx.globalAlpha = 1
+            ctx.strokeStyle = '#ffffff'
+            ctx.lineWidth = 2
+            ctx.beginPath()
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.7)
+            ctx.lineTo(screenX + cellSize * 0.3, screenY + cellSize * 0.5)
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.7)
+            ctx.lineTo(screenX + cellSize * 0.7, screenY + cellSize * 0.5)
+            ctx.moveTo(screenX + cellSize * 0.5, screenY + cellSize * 0.3)
+            ctx.lineTo(screenX + cellSize * 0.5, screenY + cellSize * 0.7)
+            ctx.stroke()
+            break
+          case 'door':
+            // Draw preview door line using the detected edge
+            ctx.globalAlpha = 1
+            ctx.strokeStyle = doorLocked.value ? '#ff6666' : '#ffcc66'
+            ctx.lineWidth = 4
+            ctx.beginPath()
+            
+            const previewEdge = previewCell.value.edge !== undefined ? previewCell.value.edge : doorDirection.value
+            
+            switch(previewEdge) {
+              case 0: // North edge
+                ctx.moveTo(screenX, screenY)
+                ctx.lineTo(screenX + cellSize, screenY)
+                break
+              case 1: // East edge
+                ctx.moveTo(screenX + cellSize, screenY)
+                ctx.lineTo(screenX + cellSize, screenY + cellSize)
+                break
+              case 2: // South edge
+                ctx.moveTo(screenX, screenY + cellSize)
+                ctx.lineTo(screenX + cellSize, screenY + cellSize)
+                break
+              case 3: // West edge
+                ctx.moveTo(screenX, screenY)
+                ctx.lineTo(screenX, screenY + cellSize)
+                break
+            }
+            
+            ctx.stroke()
+            break
+        }
+        
+        ctx.restore()
+      }
     }
     
-    const paintCell = (x, y, floor) => {
+    const paintCell = (x, y, floor, edgeOverride = null) => {
       if (floor < 0 || floor >= currentMaze.value.numFloors) {
         console.warn(`Invalid floor: ${floor}`)
         return false
@@ -486,6 +607,9 @@ export default {
       }
       
       let didPaint = false
+      
+      // For door operations, use the edge override if provided
+      const effectiveEdge = edgeOverride !== null ? edgeOverride : doorDirection.value
       
       switch (editMode.value) {
         case 'wall':
@@ -529,14 +653,14 @@ export default {
           }
           break
         case 'door':
-          currentMaze.value.addDoor(x, y, floor, doorDirection.value, {
+          currentMaze.value.addDoor(x, y, floor, effectiveEdge, {
             locked: doorLocked.value,
             showOnMinimap: true
           })
           didPaint = true
           break
         case 'removeDoor':
-          currentMaze.value.removeDoor(x, y, floor, doorDirection.value)
+          currentMaze.value.removeDoor(x, y, floor, effectiveEdge)
           didPaint = true
           break
       }
@@ -574,7 +698,35 @@ export default {
       const floorHeight = currentFloorHeight.value
       
       if (x >= 0 && x < floorWidth && y >= 0 && y < floorHeight) {
-        return { x, y, floor, valid: true }
+        // Calculate which edge of the cell is closest (for door placement)
+        let closestEdge = 0
+        
+        if (editMode.value === 'door' || editMode.value === 'removeDoor') {
+          // Get position within the cell (0 to 1)
+          const cellLocalX = (canvasX / cellSize) - x
+          const cellLocalY = (canvasY / cellSize) - y
+          
+          // Calculate distance to each edge
+          const distToNorth = cellLocalY
+          const distToSouth = 1 - cellLocalY
+          const distToWest = cellLocalX
+          const distToEast = 1 - cellLocalX
+          
+          // Find the closest edge
+          const minDist = Math.min(distToNorth, distToEast, distToSouth, distToWest)
+          
+          if (minDist === distToNorth) {
+            closestEdge = 0 // North
+          } else if (minDist === distToEast) {
+            closestEdge = 1 // East
+          } else if (minDist === distToSouth) {
+            closestEdge = 2 // South
+          } else {
+            closestEdge = 3 // West
+          }
+        }
+        
+        return { x, y, floor, closestEdge, valid: true }
       }
       
       return { valid: false }
@@ -626,7 +778,7 @@ export default {
       lastPaintedCoords = null
       
       const cell = getCellFromMouseEvent(event)
-      if (cell.valid && paintCell(cell.x, cell.y, cell.floor)) {
+      if (cell.valid && paintCell(cell.x, cell.y, cell.floor, cell.closestEdge)) {
         lastPaintedCoords = { x: cell.x, y: cell.y }
         renderEditor()
       }
@@ -645,9 +797,35 @@ export default {
         return
       }
       
+      // Update preview cell for hover
+      const cell = getCellFromMouseEvent(event)
+      if (cell.valid && editMode.value !== 'pan') {
+        const needsUpdate = !previewCell.value || 
+          previewCell.value.x !== cell.x || 
+          previewCell.value.y !== cell.y || 
+          previewCell.value.floor !== cell.floor ||
+          previewCell.value.edge !== cell.closestEdge
+        
+        if (needsUpdate) {
+          previewCell.value = { 
+            x: cell.x, 
+            y: cell.y, 
+            floor: cell.floor, 
+            edge: cell.closestEdge 
+          }
+          if (!isDrawing) {
+            renderEditor()
+          }
+        }
+      } else if (previewCell.value) {
+        previewCell.value = null
+        if (!isDrawing) {
+          renderEditor()
+        }
+      }
+      
       if (!isDrawing) return
       
-      const cell = getCellFromMouseEvent(event)
       if (!cell.valid) return
       
       let needsRender = false
@@ -657,14 +835,14 @@ export default {
         const lineCells = getLineCells(lastPaintedCoords.x, lastPaintedCoords.y, cell.x, cell.y)
         
         for (const lineCell of lineCells) {
-          if (paintCell(lineCell.x, lineCell.y, cell.floor)) {
+          if (paintCell(lineCell.x, lineCell.y, cell.floor, cell.closestEdge)) {
             needsRender = true
           }
         }
         
         lastPaintedCoords = { x: cell.x, y: cell.y }
       } else if (!lastPaintedCoords) {
-        if (paintCell(cell.x, cell.y, cell.floor)) {
+        if (paintCell(cell.x, cell.y, cell.floor, cell.closestEdge)) {
           needsRender = true
         }
         lastPaintedCoords = { x: cell.x, y: cell.y }
@@ -686,6 +864,15 @@ export default {
       if (rafId) {
         cancelAnimationFrame(rafId)
         rafId = null
+      }
+    }
+    
+    const handleCanvasMouseLeave = () => {
+      handleCanvasMouseUp()
+      // Clear preview when mouse leaves
+      if (previewCell.value) {
+        previewCell.value = null
+        renderEditor()
       }
     }
     
@@ -924,6 +1111,7 @@ export default {
       handleCanvasMouseDown,
       handleCanvasMouseMove,
       handleCanvasMouseUp,
+      handleCanvasMouseLeave,
       handleCanvasWheel,
       doorDirection,
       doorLocked,
