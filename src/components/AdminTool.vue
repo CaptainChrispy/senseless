@@ -40,7 +40,7 @@
               @click="editMode = 'pan'" 
               :class="{ active: editMode === 'pan' }"
               class="tool-btn"
-              title="Pan Tool (Space to hold temporarily)"
+              title="Pan Tool (Ctrl to hold temporarily)"
             >
               <div class="tool-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 12 12">
@@ -322,7 +322,6 @@ export default {
     const lastPanY = ref(0)
     const tempPanMode = ref(false)
     
-    // Preview state
     const previewCell = ref(null) // { x, y, floor }
     
     let ctx = null
@@ -471,14 +470,12 @@ export default {
         ctx.stroke()
       }
 
-      // Draw preview overlay
       if (previewCell.value && previewCell.value.floor === floor && editMode.value !== 'pan' && !isPanning.value) {
         const px = previewCell.value.x
         const py = previewCell.value.y
         const screenX = px * cellSize
         const screenY = py * cellSize
         
-        // Draw semi-transparent overlay based on edit mode
         ctx.save()
         ctx.globalAlpha = 0.5
         
@@ -490,7 +487,6 @@ export default {
           case 'empty':
             ctx.fillStyle = '#222'
             ctx.fillRect(screenX, screenY, cellSize, cellSize)
-            // Draw X to indicate deletion
             ctx.strokeStyle = '#ff0000'
             ctx.lineWidth = 2
             ctx.beginPath()
@@ -503,7 +499,6 @@ export default {
           case 'slippery':
             ctx.fillStyle = '#00ccff'
             ctx.fillRect(screenX, screenY, cellSize, cellSize)
-            // Draw ice pattern
             ctx.globalAlpha = 1
             ctx.strokeStyle = '#ffffff'
             ctx.lineWidth = 2
@@ -525,7 +520,6 @@ export default {
           case 'stairsUp':
             ctx.fillStyle = '#00aaff'
             ctx.fillRect(screenX, screenY, cellSize, cellSize)
-            // Draw up arrow
             ctx.globalAlpha = 1
             ctx.strokeStyle = '#ffffff'
             ctx.fillStyle = '#ffffff'
@@ -542,7 +536,6 @@ export default {
           case 'stairsDown':
             ctx.fillStyle = '#ff8800'
             ctx.fillRect(screenX, screenY, cellSize, cellSize)
-            // Draw down arrow
             ctx.globalAlpha = 1
             ctx.strokeStyle = '#ffffff'
             ctx.lineWidth = 2
@@ -556,7 +549,6 @@ export default {
             ctx.stroke()
             break
           case 'door':
-            // Draw preview door line using the detected edge
             ctx.globalAlpha = 1
             ctx.strokeStyle = doorLocked.value ? '#ff6666' : '#ffcc66'
             ctx.lineWidth = 4
@@ -608,7 +600,6 @@ export default {
       
       let didPaint = false
       
-      // For door operations, use the edge override if provided
       const effectiveEdge = edgeOverride !== null ? edgeOverride : doorDirection.value
       
       switch (editMode.value) {
@@ -702,11 +693,9 @@ export default {
         let closestEdge = 0
         
         if (editMode.value === 'door' || editMode.value === 'removeDoor') {
-          // Get position within the cell (0 to 1)
           const cellLocalX = (canvasX / cellSize) - x
           const cellLocalY = (canvasY / cellSize) - y
           
-          // Calculate distance to each edge
           const distToNorth = cellLocalY
           const distToSouth = 1 - cellLocalY
           const distToWest = cellLocalX
@@ -797,7 +786,6 @@ export default {
         return
       }
       
-      // Update preview cell for hover
       const cell = getCellFromMouseEvent(event)
       if (cell.valid && editMode.value !== 'pan') {
         const needsUpdate = !previewCell.value || 
@@ -869,7 +857,6 @@ export default {
     
     const handleCanvasMouseLeave = () => {
       handleCanvasMouseUp()
-      // Clear preview when mouse leaves
       if (previewCell.value) {
         previewCell.value = null
         renderEditor()
@@ -1064,17 +1051,17 @@ export default {
     }
     
     const handleKeyDown = (event) => {
-      if (event.code === 'Space' && !tempPanMode.value) {
-        event.preventDefault()
+      if (event.key === 'Control' || event.key === 'Meta') {
         tempPanMode.value = true
       }
     }
     
     const handleKeyUp = (event) => {
-      if (event.code === 'Space') {
-        event.preventDefault()
-        tempPanMode.value = false
-        isPanning.value = false
+      if (event.key === 'Control' || event.key === 'Meta') {
+        if (!event.ctrlKey && !event.metaKey) {
+          tempPanMode.value = false
+          isPanning.value = false
+        }
       }
     }
     
