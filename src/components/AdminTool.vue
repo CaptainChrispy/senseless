@@ -47,7 +47,7 @@
                   <path fill="currentColor" fill-rule="evenodd" d="M6 12A6 6 0 1 1 6 0a6 6 0 0 1 0 12M3.324 4.643q0-.47.32-.953q.321-.483.935-.8t1.433-.317q.762 0 1.344.265q.584.265.9.72q.318.457.318.991q0 .422-.18.738q-.182.317-.431.548q-.25.23-.895.775a4 4 0 0 0-.287.27a1 1 0 0 0-.16.213c-.289.667-1.543.592-1.302-.342a1.8 1.8 0 0 1 .363-.535q.225-.23.609-.547q.335-.278.485-.419t.252-.314a.73.73 0 0 0 .103-.377a.85.85 0 0 0-.313-.669q-.312-.272-.806-.272q-.577 0-.85.275q-.273.274-.462.81q-.18.56-.677.56a.7.7 0 0 1-.496-.196q-.203-.195-.203-.424M6 9.75a.75.75 0 1 1 0-1.5a.75.75 0 0 1 0 1.5"/>
                 </svg>
               </div>
-              <div class="tool-label">Hand</div>
+              <div class="tool-label">Pan</div>
             </button>
           </div>
         </div>
@@ -259,7 +259,16 @@
       </div>
       
       <div class="admin-content">
-        <div class="maze-editor" ref="mazeEditorContainer">
+        <div 
+          class="maze-editor" 
+          ref="mazeEditorContainer"
+          :class="{ 'cursor-pan': editMode === 'pan' || isPanning || tempPanMode }"
+          @mousedown="handleContainerMouseDown"
+          @mousemove="handleContainerMouseMove"
+          @mouseup="handleContainerMouseUp"
+          @mouseleave="handleContainerMouseUp"
+          @wheel="handleCanvasWheel"
+        >
           <canvas 
             ref="editorCanvas"
             :width="currentFloorWidth * cellSize"
@@ -268,8 +277,7 @@
             @mousemove="handleCanvasMouseMove"
             @mouseup="handleCanvasMouseUp"
             @mouseleave="handleCanvasMouseLeave"
-            @wheel="handleCanvasWheel"
-            :class="['editor-canvas', { 'cursor-pan': editMode === 'pan' || isPanning }]"
+            :class="['editor-canvas', { 'cursor-pan': editMode === 'pan' || isPanning || tempPanMode }]"
             :style="canvasStyle"
           ></canvas>
         </div>
@@ -863,6 +871,32 @@ export default {
       }
     }
     
+    const handleContainerMouseDown = (event) => {
+      if (event.target === mazeEditorContainer.value) {
+        isPanning.value = true
+        lastPanX.value = event.clientX
+        lastPanY.value = event.clientY
+        event.preventDefault()
+      }
+    }
+    
+    const handleContainerMouseMove = (event) => {
+      if (isPanning.value && event.target === mazeEditorContainer.value) {
+        const dx = event.clientX - lastPanX.value
+        const dy = event.clientY - lastPanY.value
+        
+        panX.value += dx
+        panY.value += dy
+        
+        lastPanX.value = event.clientX
+        lastPanY.value = event.clientY
+      }
+    }
+    
+    const handleContainerMouseUp = () => {
+      isPanning.value = false
+    }
+    
     const updateFloors = () => {
       const newFloorCount = numFloors.value
       if (newFloorCount === currentMaze.value.numFloors) return
@@ -1100,6 +1134,9 @@ export default {
       handleCanvasMouseUp,
       handleCanvasMouseLeave,
       handleCanvasWheel,
+      handleContainerMouseDown,
+      handleContainerMouseMove,
+      handleContainerMouseUp,
       doorDirection,
       doorLocked,
       resizeMaze,
@@ -1116,6 +1153,7 @@ export default {
       panX,
       panY,
       isPanning,
+      tempPanMode,
       canvasStyle,
       zoomIn,
       zoomOut,
@@ -1478,10 +1516,12 @@ export default {
   transition: transform 0.1s ease-out;
 }
 
+.maze-editor.cursor-pan,
 .editor-canvas.cursor-pan {
   cursor: grab;
 }
 
+.maze-editor.cursor-pan:active,
 .editor-canvas.cursor-pan:active {
   cursor: grabbing;
 }
