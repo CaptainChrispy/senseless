@@ -1546,6 +1546,8 @@ export default {
   background-color: #000;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
   transition: transform 0.1s ease-out;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 .maze-editor.cursor-pan,
