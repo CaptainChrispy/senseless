@@ -1171,8 +1171,7 @@ export default {
   width: 100vw;
   height: 100vh;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
   z-index: 2000;
   
   background-color: rgba(0, 0, 0, 0.85);
@@ -1205,22 +1204,32 @@ export default {
 }
 
 .admin-panel {
-  background-color: #2a2a2a;
-  border: 2px solid #555;
-  border-radius: 8px;
-  width: 90vw;
-  height: 90vh;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  
-  animation: modal-appear 0.3s ease-out;
+  position: relative;
 }
 
 @keyframes modal-appear {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(-10px) translateX(-50%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(-50%);
+  }
+}
+
+@keyframes footer-appear {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -1233,8 +1242,14 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  background-color: #333;
-  border-bottom: 1px solid #555;
+  background-color: transparent;
+  border: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2001;
+  pointer-events: none;
 }
 
 .admin-header h2 {
@@ -1254,6 +1269,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: all;
 }
 
 .close-btn:hover {
@@ -1263,18 +1279,30 @@ export default {
 
 .toolbar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 15px;
   padding: 12px 20px;
   background-color: #3a3a3a;
-  border-bottom: 2px solid #555;
-  align-items: center;
+  border: 2px solid #555;
+  border-radius: 8px;
+  align-items: flex-start;
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: 90vw;
+  z-index: 2001;
+  animation: modal-appear 0.3s ease-out;
+  pointer-events: all;
+  overflow-x: auto;
 }
 
 .toolbar-section {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  flex-shrink: 0;
 }
 
 .toolbar-label {
@@ -1495,17 +1523,21 @@ export default {
   flex: 1;
   display: flex;
   overflow: hidden;
-  background-color: #1a1a1a;
+  background: transparent;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
 }
 
 .maze-editor {
   flex: 1;
-  padding: 20px;
-  overflow: auto;
+  padding: 0;
+  overflow: hidden;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
   position: relative;
+  background: transparent;
 }
 
 .editor-canvas {
@@ -1528,22 +1560,28 @@ export default {
 
 .admin-footer {
   padding: 15px 20px;
-  background-color: #333;
-  border-top: 1px solid #555;
+  background-color: transparent;
+  border: none;
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2001;
+  animation: footer-appear 0.3s ease-out 0.1s backwards;
 }
 
 .apply-btn, .cancel-btn {
   padding: 10px 20px;
-  border: 1px solid #777;
+  border: 2px solid #555;
   cursor: pointer;
   font-family: inherit;
   border-radius: 4px;
   font-size: 14px;
   font-weight: 600;
   transition: all 0.2s;
+  background-color: #2a2a2a;
 }
 
 .apply-btn {
