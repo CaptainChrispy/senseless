@@ -70,6 +70,34 @@
             />
           </div>
           
+          <div class="fov-control">
+            <label for="renderDistanceSlider">Render Distance: {{ renderDistance.toFixed(1) }}</label>
+            <input 
+              id="renderDistanceSlider"
+              type="range" 
+              min="2" 
+              max="15" 
+              step="0.5"
+              v-model.number="renderDistance"
+              @input="updateRenderDistance"
+              class="fov-slider"
+            />
+          </div>
+          
+          <div class="fov-control">
+            <label for="fogDistanceSlider">Fog Start Distance: {{ fogDistance.toFixed(1) }}</label>
+            <input 
+              id="fogDistanceSlider"
+              type="range" 
+              min="0.5" 
+              max="10" 
+              step="0.5"
+              v-model.number="fogDistance"
+              @input="updateFogDistance"
+              class="fov-slider"
+            />
+          </div>
+          
           <div class="biome-control">
             <label for="biomeSelect">Biome:</label>
             <select 
@@ -145,12 +173,12 @@ export default {
     
     // Game state
   const maze = ref(new Maze(15, 15))
-  const player = reactive(new Player(1, 1, 0)) // Start at exact integer position
+    const player = reactive(new Player(1, 1, 0)) // Start at exact integer position
     const stepCount = ref(0)
     const fovDegrees = ref(120)
+    const renderDistance = ref(5)
+    const fogDistance = ref(3)
     const currentBiome = ref('DUNGEON')
-    
-    // Battle system
     const battleSystem = new BattleSystem()
     const battleState = ref({
       inBattle: false,
@@ -325,6 +353,20 @@ export default {
     const updateFOV = () => {
       if (mazeRenderer) {
         mazeRenderer.fov = (fovDegrees.value * Math.PI) / 180
+        render()
+      }
+    }
+    
+    const updateRenderDistance = () => {
+      if (mazeRenderer) {
+        mazeRenderer.viewDistance = renderDistance.value
+        render()
+      }
+    }
+    
+    const updateFogDistance = () => {
+      if (mazeRenderer) {
+        mazeRenderer.fogStart = fogDistance.value
         render()
       }
     }
@@ -516,6 +558,8 @@ export default {
       stepCount,
       battleState,
       fovDegrees,
+      renderDistance,
+      fogDistance,
       currentBiome,
       moveForward,
       moveBackward,
@@ -523,6 +567,8 @@ export default {
       turnRight,
       turnAround,
       updateFOV,
+      updateRenderDistance,
+      updateFogDistance,
       changeBiome,
       attack,
       defend,
