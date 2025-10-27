@@ -881,7 +881,7 @@ export default {
     }
     
     const handleContainerMouseMove = (event) => {
-      if (isPanning.value && event.target === mazeEditorContainer.value) {
+      if (isPanning.value) {
         const dx = event.clientX - lastPanX.value
         const dy = event.clientY - lastPanY.value
         
