@@ -281,6 +281,26 @@
             :style="canvasStyle"
           ></canvas>
         </div>
+
+        <div class="floors-panel">
+          <div class="floors-list" ref="floorsListContainer">
+            <div 
+              v-for="index in numFloors" 
+              :key="numFloors - index"
+              @click="currentFloor = numFloors - index"
+              :class="['floor-item', { active: currentFloor === numFloors - index }]"
+            >
+              <canvas 
+                :ref="el => floorCanvases[numFloors - index] = el"
+                class="floor-preview"
+                :width="currentMaze.getFloorWidth(numFloors - index) * 4"
+                :height="currentMaze.getFloorHeight(numFloors - index) * 4"
+              ></canvas>
+              <div class="floor-label">Floor {{ numFloors - index + 1 }}</div>
+            </div>
+          </div>
+          <button @click="addFloor" class="add-floor-btn" title="Add Floor">+</button>
+        </div>
       </div>
       
       <div class="admin-footer">
@@ -332,11 +352,16 @@ export default {
     
     const previewCell = ref(null) // { x, y, floor }
     
+    const floorCanvases = ref([])
+    const floorsListContainer = ref(null)
+    const floorPreviewSize = 4
+    
     let ctx = null
     let isDrawing = false
     let lastPaintedCell = null
     let lastPaintedCoords = null // Track actual x,y for line interpolation
     let rafId = null
+    let resizeDebounceTimer = null
     
     const currentFloorWidth = computed(() => currentMaze.value.getFloorWidth(currentFloor.value))
     const currentFloorHeight = computed(() => currentMaze.value.getFloorHeight(currentFloor.value))
@@ -386,6 +411,9 @@ export default {
       selectedBiome.value = currentMaze.value.biome
       
       renderEditor()
+      nextTick(() => {
+        updateAllFloorPreviews()
+      })
     }
     
     const renderEditor = () => {
@@ -668,6 +696,10 @@ export default {
         lastPaintedCell = cellKey
       }
       
+      if (didPaint) {
+        renderFloorPreview(currentFloor.value)
+      }
+      
       return didPaint
     }
     
@@ -923,11 +955,16 @@ export default {
     }
     
     const resizeCurrentFloor = () => {
-      currentMaze.value.setFloorDimensions(currentFloor.value, mazeWidth.value, mazeHeight.value)
-      nextTick(() => {
-        ctx = editorCanvas.value.getContext('2d')
-        renderEditor()
-      })
+      if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer)
+      
+      resizeDebounceTimer = setTimeout(() => {
+        currentMaze.value.setFloorDimensions(currentFloor.value, mazeWidth.value, mazeHeight.value)
+        nextTick(() => {
+          ctx = editorCanvas.value.getContext('2d')
+          renderEditor()
+          updateAllFloorPreviews()
+        })
+      }, 100)
     }
     
     const resizeMaze = () => {
@@ -1084,6 +1121,71 @@ export default {
       panY.value = 0
     }
     
+    const renderFloorPreview = (floorIndex) => {
+      const canvas = floorCanvases.value[floorIndex]
+      if (!canvas) return
+      
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      
+      const width = currentMaze.value.getFloorWidth(floorIndex)
+      const height = currentMaze.value.getFloorHeight(floorIndex)
+      
+      ctx.fillStyle = '#000'
+      ctx.fillRect(0, 0, width * floorPreviewSize, height * floorPreviewSize)
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const cellType = currentMaze.value.getCellType(x, y, floorIndex)
+          let color = '#000'
+          
+          // Cell types: 0 = empty, 1 = wall, 2 = slippery
+          if (cellType === 1) color = '#444'
+          else if (cellType === 2) color = '#0a8a9a'
+          
+          // Check for doors
+          if (currentMaze.value.doorManager && currentMaze.value.doorManager.hasDoor(x, y, floorIndex)) {
+            color = '#5a3a0a'
+          }
+          
+          // Check for stairs
+          if (currentMaze.value.hasStairs(x, y, floorIndex)) {
+            const stairs = currentMaze.value.getStairs(x, y, floorIndex)
+            color = stairs.targetFloor > floorIndex ? '#0a3a7a' : '#7a4a0a'
+          }
+          
+          // Check for start/exit
+          if (x === currentMaze.value.startPosition.x && y === currentMaze.value.startPosition.y && floorIndex === currentMaze.value.startPosition.floor) {
+            color = '#0a7a0a'
+          } else if (x === currentMaze.value.exitPosition.x && y === currentMaze.value.exitPosition.y && floorIndex === currentMaze.value.exitPosition.floor) {
+            color = '#7a0a0a'
+          }
+          
+          ctx.fillStyle = color
+          ctx.fillRect(x * floorPreviewSize, y * floorPreviewSize, floorPreviewSize, floorPreviewSize)
+        }
+      }
+    }
+    
+    const updateAllFloorPreviews = () => {
+      for (let i = 0; i < numFloors.value; i++) {
+        nextTick(() => {
+          renderFloorPreview(i)
+        })
+      }
+    }
+    
+    const addFloor = () => {
+      numFloors.value += 1
+      updateFloors()
+      nextTick(() => {
+        updateAllFloorPreviews()
+        if (floorsListContainer.value) {
+          floorsListContainer.value.scrollTop = floorsListContainer.value.scrollHeight
+        }
+      })
+    }
+    
     const handleKeyDown = (event) => {
       if (event.key === 'Control' || event.key === 'Meta') {
         tempPanMode.value = true
@@ -1112,6 +1214,10 @@ export default {
     
     watch(() => props.maze, () => {
       initializeEditor()
+    })
+    
+    watch(numFloors, () => {
+      updateAllFloorPreviews()
     })
     
     return {
@@ -1157,7 +1263,12 @@ export default {
       canvasStyle,
       zoomIn,
       zoomOut,
-      resetView
+      resetView,
+      floorCanvases,
+      floorsListContainer,
+      renderFloorPreview,
+      updateAllFloorPreviews,
+      addFloor
     }
   }
 }
@@ -1527,6 +1638,7 @@ export default {
   padding: 0;
   height: 100vh;
   width: 100vw;
+  gap: 0;
 }
 
 .maze-editor {
@@ -1569,7 +1681,7 @@ export default {
   justify-content: flex-end;
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  right: 80px;
   z-index: 2001;
   animation: footer-appear 0.3s ease-out 0.1s backwards;
 }
@@ -1605,5 +1717,101 @@ export default {
 .cancel-btn:hover {
   background-color: #777;
   transform: translateY(-1px);
+}
+
+.floors-panel {
+  width: 180px;
+  background-color: transparent;
+  border-left: none;
+  display: flex;
+  flex-direction: column;
+  padding: 70px 0 70px 0;
+  position: relative;
+  margin-top: 70px;
+}
+
+.floors-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 80%, transparent 100%);
+}
+
+.floor-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 2px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background-color: #2a2a2a;
+  flex-shrink: 0;
+}
+
+.floor-item:hover {
+  border-color: #666;
+  background-color: #333;
+}
+
+.floor-item.active {
+  border-color: #4a7c59;
+  background-color: #2a4a2a;
+  box-shadow: 0 0 8px rgba(74, 124, 89, 0.3);
+}
+
+.floor-preview {
+  width: 100%;
+  height: 100px;
+  border: 1px solid #555;
+  background-color: #000;
+  border-radius: 2px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.floor-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+  text-align: center;
+}
+
+.add-floor-btn {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2px solid #4a7c59;
+  background-color: #2a4a2a;
+  color: #5a8c69;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  line-height: 1;
+  padding: 0;
+}
+
+.add-floor-btn:hover {
+  background-color: #3a6a3a;
+  border-color: #5a8c69;
+  transform: translateX(-50%) scale(1.1);
+}
+
+.add-floor-btn:active {
+  transform: translateX(-50%) scale(0.95);
 }
 </style>
