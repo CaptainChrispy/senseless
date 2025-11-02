@@ -471,7 +471,8 @@ export default {
           
           // Draw grid lines
           ctx.strokeStyle = '#555'
-          ctx.strokeRect(screenX, screenY, cellSize, cellSize)
+          ctx.lineWidth = 1
+          ctx.strokeRect(screenX + 0.5, screenY + 0.5, cellSize - 1, cellSize - 1)
         }
       }
       
