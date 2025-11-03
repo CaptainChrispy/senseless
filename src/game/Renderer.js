@@ -277,11 +277,9 @@ export class MazeRenderer {
       
       const texX = Math.floor(wallX * texWidth) % texWidth;
       
-      const brightness = side === 1 ? 0.6 : 1.0;
-      
       this.ctx.save();
       
-      const finalAlpha = brightness * (1 - fogIntensity * 0.7);
+      const finalAlpha = 1 - fogIntensity * 0.7;
       if (finalAlpha < 1.0) {
         this.ctx.globalAlpha = finalAlpha;
       }
