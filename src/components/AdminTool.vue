@@ -56,7 +56,15 @@
           <label class="toolbar-label">View</label>
           <div class="zoom-controls">
             <button @click="zoomOut" class="zoom-btn" title="Zoom Out">−</button>
-            <span class="zoom-display">{{ Math.round(zoom * 100) }}%</span>
+            <input 
+              v-model.number="zoomPercent" 
+              @change="setZoomFromPercent"
+              type="number"
+              min="10"
+              max="500"
+              class="zoom-input"
+              title="Zoom percentage"
+            />
             <button @click="zoomIn" class="zoom-btn" title="Zoom In">+</button>
             <button @click="resetView" class="zoom-btn" title="Reset View">⟲</button>
           </div>
@@ -355,6 +363,13 @@ export default {
     const floorCanvases = ref([])
     const floorsListContainer = ref(null)
     const floorPreviewSize = 4
+    
+    const zoomPercent = computed({
+      get: () => Math.round(zoom.value * 100),
+      set: (val) => {
+        zoom.value = val / 100
+      }
+    })
     
     let ctx = null
     let isDrawing = false
@@ -1122,6 +1137,11 @@ export default {
       panY.value = 0
     }
     
+    const setZoomFromPercent = () => {
+      const percent = Math.max(10, Math.min(500, zoomPercent.value))
+      zoom.value = percent / 100
+    }
+    
     const renderFloorPreview = (floorIndex) => {
       const canvas = floorCanvases.value[floorIndex]
       if (!canvas) return
@@ -1265,6 +1285,8 @@ export default {
       zoomIn,
       zoomOut,
       resetView,
+      zoomPercent,
+      setZoomFromPercent,
       floorCanvases,
       floorsListContainer,
       renderFloorPreview,
@@ -1555,6 +1577,25 @@ export default {
   font-weight: 600;
   color: #ccc;
   padding: 0 4px;
+}
+
+.zoom-input {
+  width: 50px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+  padding: 4px 4px;
+  background-color: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 3px;
+  font-family: inherit;
+}
+
+.zoom-input:focus {
+  outline: none;
+  border-color: #4a7c59;
+  box-shadow: 0 0 0 2px rgba(74, 124, 89, 0.3);
 }
 
 .toolbar-select, .toolbar-input {
