@@ -292,20 +292,22 @@
 
         <div class="floors-panel">
           <div class="floors-list" ref="floorsListContainer">
-            <div 
-              v-for="index in numFloors" 
-              :key="numFloors - index"
-              @click="currentFloor = numFloors - index"
-              :class="['floor-item', { active: currentFloor === numFloors - index }]"
-            >
-              <canvas 
-                :ref="el => floorCanvases[numFloors - index] = el"
-                class="floor-preview"
-                :width="currentMaze.getFloorWidth(numFloors - index) * 4"
-                :height="currentMaze.getFloorHeight(numFloors - index) * 4"
-              ></canvas>
-              <div class="floor-label">Floor {{ numFloors - index + 1 }}</div>
-            </div>
+            <transition-group name="floor" tag="div" class="floors-transition-group">
+              <div 
+                v-for="index in numFloors" 
+                :key="numFloors - index"
+                @click="currentFloor = numFloors - index"
+                :class="['floor-item', { active: currentFloor === numFloors - index }]"
+              >
+                <canvas 
+                  :ref="el => floorCanvases[numFloors - index] = el"
+                  class="floor-preview"
+                  :width="currentMaze.getFloorWidth(numFloors - index) * 4"
+                  :height="currentMaze.getFloorHeight(numFloors - index) * 4"
+                ></canvas>
+                <div class="floor-label">Floor {{ numFloors - index + 1 }}</div>
+              </div>
+            </transition-group>
           </div>
           <button @click="addFloor" class="add-floor-btn" title="Add Floor">+</button>
         </div>
@@ -1202,7 +1204,7 @@ export default {
       nextTick(() => {
         updateAllFloorPreviews()
         if (floorsListContainer.value) {
-          floorsListContainer.value.scrollTop = floorsListContainer.value.scrollHeight
+          floorsListContainer.value.scrollTop = 0
         }
       })
     }
@@ -1822,6 +1824,24 @@ export default {
   font-weight: 600;
   color: #ccc;
   text-align: center;
+}
+
+.floor-enter-active, .floor-leave-active {
+  transition: all 0.3s ease;
+}
+
+.floor-enter-from {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.floor-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.floor-move {
+  transition: transform 0.3s ease;
 }
 
 .add-floor-btn {
