@@ -41,6 +41,10 @@
           ></canvas>
         </div>
         
+        <div class="gamepad-status" v-if="gamepadState.connected">
+          <span class="gamepad-indicator">🎮 Gamepad Connected</span>
+        </div>
+        
         <div class="game-info">
           <p>Position: ({{ Math.floor(player.x) }}, {{ Math.floor(player.y) }})
             <span v-if="player.isMoving" class="subtext">({{ player.x.toFixed(2) }}, {{ player.y.toFixed(2) }})</span>
@@ -497,6 +501,116 @@ export default {
       }
     }
     
+    // Gamepad support
+    const gamepadState = reactive({
+      connected: false,
+      index: null,
+      lastButtonState: {},
+      lastAxisValues: { leftX: 0, leftY: 0, rightX: 0 },
+      deadzone: 0.2,
+      axisMoveThreshold: 0.5
+    })
+    
+    const checkGamepad = () => {
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : []
+      let gamepad = null
+      
+      // Find first connected gamepad
+      for (let i = 0; i < gamepads.length; i++) {
+        if (gamepads[i]) {
+          gamepad = gamepads[i]
+          if (!gamepadState.connected) {
+            console.log('Gamepad connected:', gamepad.id)
+            gamepadState.connected = true
+            gamepadState.index = i
+          }
+          break
+        }
+      }
+      
+      if (!gamepad) {
+        if (gamepadState.connected) {
+          console.log('Gamepad disconnected')
+          gamepadState.connected = false
+          gamepadState.index = null
+        }
+        return
+      }
+      
+      if (battleState.value.inBattle || !player.canAct()) return
+      
+      const buttonMappings = {
+        0: moveForward,      // A/Cross
+        12: moveForward,     // D-pad Up
+        1: turnAround,       // B/Circle
+        13: turnAround,      // D-pad Down
+        2: turnLeft,         // X/Square
+        14: turnLeft,        // D-pad Left
+        3: turnRight,        // Y/Triangle
+        15: turnRight        // D-pad Right
+      }
+      
+      gamepad.buttons.forEach((button, index) => {
+        const wasPressed = gamepadState.lastButtonState[index]
+        const isPressed = button.pressed
+        
+        if (isPressed && !wasPressed && buttonMappings[index]) {
+          buttonMappings[index]()
+        }
+        
+        gamepadState.lastButtonState[index] = isPressed
+      })
+      
+      if (gamepad.axes.length >= 2) {
+        const leftX = Math.abs(gamepad.axes[0]) > gamepadState.deadzone ? gamepad.axes[0] : 0
+        const leftY = Math.abs(gamepad.axes[1]) > gamepadState.deadzone ? gamepad.axes[1] : 0
+        
+        const prevLeftY = gamepadState.lastAxisValues.leftY
+        const prevLeftX = gamepadState.lastAxisValues.leftX
+        
+        if (leftY < -gamepadState.axisMoveThreshold && prevLeftY >= -gamepadState.axisMoveThreshold) {
+          moveForward()
+        } else if (leftY > gamepadState.axisMoveThreshold && prevLeftY <= gamepadState.axisMoveThreshold) {
+          turnAround()
+        }
+        
+        if (leftX < -gamepadState.axisMoveThreshold && prevLeftX >= -gamepadState.axisMoveThreshold) {
+          turnLeft()
+        } else if (leftX > gamepadState.axisMoveThreshold && prevLeftX <= gamepadState.axisMoveThreshold) {
+          turnRight()
+        }
+        
+        gamepadState.lastAxisValues.leftY = leftY
+        gamepadState.lastAxisValues.leftX = leftX
+      }
+      
+      if (gamepad.axes.length >= 4) {
+        const rightX = Math.abs(gamepad.axes[2]) > gamepadState.deadzone ? gamepad.axes[2] : 0
+        const prevRightX = gamepadState.lastAxisValues.rightX
+        
+        if (rightX < -gamepadState.axisMoveThreshold && prevRightX >= -gamepadState.axisMoveThreshold) {
+          turnLeft()
+        } else if (rightX > gamepadState.axisMoveThreshold && prevRightX <= gamepadState.axisMoveThreshold) {
+          turnRight()
+        }
+        
+        gamepadState.lastAxisValues.rightX = rightX
+      }
+    }
+    
+    const handleGamepadConnected = (event) => {
+      console.log('Gamepad connected event:', event.gamepad.id)
+      gamepadState.connected = true
+      gamepadState.index = event.gamepad.index
+    }
+    
+    const handleGamepadDisconnected = (event) => {
+      console.log('Gamepad disconnected event:', event.gamepad.id)
+      gamepadState.connected = false
+      gamepadState.index = null
+      gamepadState.lastButtonState = {}
+    }
+    
     // Game loop for smooth animations
     let animationFrameId = null
     
@@ -504,6 +618,8 @@ export default {
       const currentTime = Date.now();
       const deltaTime = (currentTime - (gameLoop.lastTime || currentTime)) / 1000;
       gameLoop.lastTime = currentTime;
+      
+      checkGamepad()
       
       // Snapshot state before update
       const prevX = player.x;
@@ -539,11 +655,15 @@ export default {
     onMounted(() => {
       initializeGame()
       window.addEventListener('keydown', handleKeyPress)
+      window.addEventListener('gamepadconnected', handleGamepadConnected)
+      window.addEventListener('gamepaddisconnected', handleGamepadDisconnected)
       gameLoop() // Start the animation loop
     })
     
     onUnmounted(() => {
       window.removeEventListener('keydown', handleKeyPress)
+      window.removeEventListener('gamepadconnected', handleGamepadConnected)
+      window.removeEventListener('gamepaddisconnected', handleGamepadDisconnected)
       if (animationFrameId) {
         cancelAnimationFrame(animationFrameId)
       }
@@ -561,6 +681,7 @@ export default {
       renderDistance,
       fogDistance,
       currentBiome,
+      gamepadState,
       moveForward,
       moveBackward,
       turnLeft,
@@ -664,6 +785,28 @@ export default {
 .minimap-canvas {
   border: 1px solid #555;
   background-color: #000;
+}
+
+.gamepad-status {
+  margin: 10px 0;
+  padding: 8px;
+  background-color: #2a4a2a;
+  border: 1px solid #4a7c59;
+  border-radius: 5px;
+  text-align: center;
+}
+
+.gamepad-indicator {
+  color: #5a8c69;
+  font-weight: bold;
+  font-size: 13px;
+  display: inline-block;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .game-info {
