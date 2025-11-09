@@ -71,6 +71,24 @@
         </div>
 
         <div class="toolbar-section">
+          <label class="toolbar-label">History</label>
+          <div class="history-controls">
+            <button 
+              @click="performUndo" 
+              :disabled="!canUndo"
+              class="history-btn" 
+              title="Undo (Ctrl+Z)"
+            >↶</button>
+            <button 
+              @click="performRedo" 
+              :disabled="!canRedo"
+              class="history-btn" 
+              title="Redo (Ctrl+Shift+Z)"
+            >↷</button>
+          </div>
+        </div>
+
+        <div class="toolbar-section">
           <label class="toolbar-label">Palette</label>
           <div class="tool-buttons-group">
             <button 
@@ -326,6 +344,222 @@ import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import { Maze } from '../game/GameEngine.js'
 import { getBiomeNames } from '../game/TextureManager.js'
 
+// Command Pattern for Undo/Redo
+class Command {
+  execute() {}
+  undo() {}
+}
+
+class SetCellCommand extends Command {
+  constructor(maze, x, y, floor, oldValue, newValue) {
+    super()
+    this.maze = maze
+    this.x = x
+    this.y = y
+    this.floor = floor
+    this.oldValue = oldValue
+    this.newValue = newValue
+  }
+  
+  execute() {
+    this.maze.setFloorCell(this.x, this.y, this.floor, this.newValue)
+  }
+  
+  undo() {
+    this.maze.setFloorCell(this.x, this.y, this.floor, this.oldValue)
+  }
+}
+
+class BatchCellCommand extends Command {
+  constructor(maze, cells) {
+    super()
+    this.maze = maze
+    this.cells = cells
+  }
+  
+  execute() {
+    this.cells.forEach(cell => {
+      this.maze.setFloorCell(cell.x, cell.y, cell.floor, cell.newValue)
+    })
+  }
+  
+  undo() {
+    this.cells.forEach(cell => {
+      this.maze.setFloorCell(cell.x, cell.y, cell.floor, cell.oldValue)
+    })
+  }
+}
+
+class AddFloorCommand extends Command {
+  constructor(maze, floorIndex, width, height) {
+    super()
+    this.maze = maze
+    this.floorIndex = floorIndex
+    this.width = width
+    this.height = height
+    this.floorData = null
+  }
+  
+  execute() {
+    if (this.floorData) {
+      this.maze.floorData[this.floorIndex] = this.floorData
+      this.maze.numFloors = this.maze.floorData.length
+    } else {
+      const newFloor = {
+        width: this.width,
+        height: this.height,
+        cells: Array(this.height).fill(null).map(() => Array(this.width).fill(0))
+      }
+      this.maze.floorData.push(newFloor)
+      this.maze.numFloors = this.maze.floorData.length
+      this.floorData = newFloor
+    }
+  }
+  
+  undo() {
+    this.maze.floorData.pop()
+    this.maze.numFloors = this.maze.floorData.length
+  }
+}
+
+class RemoveFloorCommand extends Command {
+  constructor(maze, floorIndex) {
+    super()
+    this.maze = maze
+    this.floorIndex = floorIndex
+    this.floorData = null
+    this.stairs = []
+    this.doors = []
+  }
+  
+  execute() {
+    this.floorData = this.maze.floorData[this.floorIndex]
+    
+    this.stairs = []
+    this.maze.stairs.forEach((value, key) => {
+      const [x, y, floor] = key.split(',').map(Number)
+      if (floor === this.floorIndex) {
+        this.stairs.push({ key, value })
+      }
+    })
+    
+    this.doors = []
+    this.maze.doorManager.doors.forEach((value, key) => {
+      const [x, y, floor] = key.split(',').map(Number)
+      if (floor === this.floorIndex) {
+        this.doors.push({ key, value })
+      }
+    })
+    
+    this.maze.floorData.splice(this.floorIndex, 1)
+    this.maze.numFloors = this.maze.floorData.length
+    
+    this.stairs.forEach(({ key }) => this.maze.stairs.delete(key))
+    
+    this.doors.forEach(({ key }) => this.maze.doorManager.doors.delete(key))
+  }
+  
+  undo() {
+    this.maze.floorData.splice(this.floorIndex, 0, this.floorData)
+    this.maze.numFloors = this.maze.floorData.length
+    
+    this.stairs.forEach(({ key, value }) => this.maze.stairs.set(key, value))
+    
+    this.doors.forEach(({ key, value }) => this.maze.doorManager.doors.set(key, value))
+  }
+}
+
+class ResizeFloorCommand extends Command {
+  constructor(maze, floor, oldWidth, oldHeight, newWidth, newHeight) {
+    super()
+    this.maze = maze
+    this.floor = floor
+    this.oldWidth = oldWidth
+    this.oldHeight = oldHeight
+    this.newWidth = newWidth
+    this.newHeight = newHeight
+    this.oldCells = null
+  }
+  
+  execute() {
+    if (!this.oldCells) {
+      this.oldCells = this.maze.floorData[this.floor].cells.map(row => [...row])
+    }
+    
+    const floorData = this.maze.floorData[this.floor]
+    const newCells = Array(this.newHeight).fill(null).map(() => Array(this.newWidth).fill(0))
+    
+    for (let y = 0; y < Math.min(this.oldHeight, this.newHeight); y++) {
+      for (let x = 0; x < Math.min(this.oldWidth, this.newWidth); x++) {
+        newCells[y][x] = this.oldCells[y][x]
+      }
+    }
+    
+    floorData.width = this.newWidth
+    floorData.height = this.newHeight
+    floorData.cells = newCells
+  }
+  
+  undo() {
+    const floorData = this.maze.floorData[this.floor]
+    floorData.width = this.oldWidth
+    floorData.height = this.oldHeight
+    floorData.cells = this.oldCells
+  }
+}
+
+class CommandHistory {
+  constructor(maxSize = 50) {
+    this.undoStack = []
+    this.redoStack = []
+    this.maxSize = maxSize
+  }
+  
+  execute(command) {
+    command.execute()
+    this.undoStack.push(command)
+    
+    if (this.undoStack.length > this.maxSize) {
+      this.undoStack.shift()
+    }
+    
+    this.redoStack = []
+  }
+  
+  undo() {
+    if (this.undoStack.length === 0) return false
+    
+    const command = this.undoStack.pop()
+    command.undo()
+    this.redoStack.push(command)
+    
+    return true
+  }
+  
+  redo() {
+    if (this.redoStack.length === 0) return false
+    
+    const command = this.redoStack.pop()
+    command.execute()
+    this.undoStack.push(command)
+    
+    return true
+  }
+  
+  canUndo() {
+    return this.undoStack.length > 0
+  }
+  
+  canRedo() {
+    return this.redoStack.length > 0
+  }
+  
+  clear() {
+    this.undoStack = []
+    this.redoStack = []
+  }
+}
+
 export default {
   name: 'AdminTool',
   props: {
@@ -351,6 +585,23 @@ export default {
     const doorLocked = ref(false)
     const cellSize = 20
     const currentMaze = ref(new Maze(props.maze.width, props.maze.height, props.maze.biome || 'DUNGEON', props.maze.numFloors || 1))
+    
+    // Command history for undo/redo
+    const commandHistory = new CommandHistory(50)
+    const batchedCells = []
+    let isBatchingCommands = false
+    const canUndo = ref(false)
+    const canRedo = ref(false)
+    
+    const updateHistoryState = () => {
+      canUndo.value = commandHistory.canUndo()
+      canRedo.value = commandHistory.canRedo()
+    }
+    
+    const executeCommand = (command) => {
+      commandHistory.execute(command)
+      updateHistoryState()
+    }
     
     const zoom = ref(1)
     const panX = ref(0)
@@ -656,23 +907,36 @@ export default {
       
       const effectiveEdge = edgeOverride !== null ? edgeOverride : doorDirection.value
       
+      const oldValue = currentMaze.value.getFloorCell(x, y, floor)
+      let newValue = oldValue
+      
+
       switch (editMode.value) {
         case 'wall':
-          currentMaze.value.addWall(x, y, floor)
-          didPaint = true
+          newValue = 1
           break
         case 'empty':
-          currentMaze.value.removeWall(x, y, floor)
           currentMaze.value.removeStairs(x, y, floor)
-          didPaint = true
+          newValue = 0
           break
         case 'slippery':
-          currentMaze.value.removeWall(x, y, floor)
-          currentMaze.value.addSlipperyTile(x, y, floor)
-          didPaint = true
+          newValue = 2
           break
         case 'removeSlippery':
-          currentMaze.value.removeSlipperyTile(x, y, floor)
+          newValue = 0
+          break
+        case 'stairsUp':
+          if (floor < currentMaze.value.numFloors - 1) {
+            currentMaze.value.addStairs(x, y, floor, floor + 1, x, y)
+            newValue = 0 
+          }
+          didPaint = true
+          break
+        case 'stairsDown':
+          if (floor > 0) {
+            currentMaze.value.addStairs(x, y, floor, floor - 1, x, y)
+            newValue = 0
+          }
           didPaint = true
           break
         case 'start':
@@ -682,20 +946,6 @@ export default {
         case 'exit':
           currentMaze.value.exitPosition = { x, y, floor }
           didPaint = true
-          break
-        case 'stairsUp':
-          if (floor < currentMaze.value.numFloors - 1) {
-            currentMaze.value.removeWall(x, y, floor)
-            currentMaze.value.addStairs(x, y, floor, floor + 1, x, y)
-            didPaint = true
-          }
-          break
-        case 'stairsDown':
-          if (floor > 0) {
-            currentMaze.value.removeWall(x, y, floor)
-            currentMaze.value.addStairs(x, y, floor, floor - 1, x, y)
-            didPaint = true
-          }
           break
         case 'door':
           currentMaze.value.addDoor(x, y, floor, effectiveEdge, {
@@ -708,6 +958,18 @@ export default {
           currentMaze.value.removeDoor(x, y, floor, effectiveEdge)
           didPaint = true
           break
+      }
+      
+      if (oldValue !== newValue && !['start', 'exit', 'door', 'removeDoor'].includes(editMode.value)) {
+        didPaint = true
+        
+        if (isBatchingCommands) {
+          currentMaze.value.setFloorCell(x, y, floor, newValue)
+          batchedCells.push({ x, y, floor, oldValue, newValue })
+        } else {
+          const command = new SetCellCommand(currentMaze.value, x, y, floor, oldValue, newValue)
+          executeCommand(command)
+        }
       }
       
       if (didPaint && !isSingleClickMode) {
@@ -823,6 +1085,10 @@ export default {
       isDrawing = true
       lastPaintedCell = null
       lastPaintedCoords = null
+      
+      // Start batching commands for drag operations
+      isBatchingCommands = true
+      batchedCells.length = 0
       
       const cell = getCellFromMouseEvent(event)
       if (cell.valid && paintCell(cell.x, cell.y, cell.floor, cell.closestEdge)) {
@@ -945,6 +1211,16 @@ export default {
     
     const handleContainerMouseUp = () => {
       isPanning.value = false
+      
+      // End batching and create batch command if we have cells
+      if (isBatchingCommands && batchedCells.length > 0) {
+        const command = new BatchCellCommand(currentMaze.value, [...batchedCells])
+        executeCommand(command)
+        batchedCells.length = 0
+      }
+      isBatchingCommands = false
+      
+      isDrawing = false
     }
     
     const updateFloors = () => {
@@ -1199,8 +1475,15 @@ export default {
     }
     
     const addFloor = () => {
-      numFloors.value += 1
-      updateFloors()
+      const defaultWidth = currentMaze.value.getFloorWidth(0)
+      const defaultHeight = currentMaze.value.getFloorHeight(0)
+      const newFloorIndex = currentMaze.value.numFloors
+      
+      const command = new AddFloorCommand(currentMaze.value, newFloorIndex, defaultWidth, defaultHeight)
+      executeCommand(command)
+      
+      numFloors.value = currentMaze.value.numFloors
+      
       nextTick(() => {
         updateAllFloorPreviews()
         if (floorsListContainer.value) {
@@ -1212,6 +1495,32 @@ export default {
     const handleKeyDown = (event) => {
       if (event.key === 'Control' || event.key === 'Meta') {
         tempPanMode.value = true
+      }
+      
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        event.preventDefault()
+        performUndo()
+      }
+      
+      if ((event.ctrlKey || event.metaKey) && (event.shiftKey && event.key === 'z' || event.key === 'y')) {
+        event.preventDefault()
+        performRedo()
+      }
+    }
+    
+    const performUndo = () => {
+      if (commandHistory.undo()) {
+        renderEditor()
+        updateAllFloorPreviews()
+        updateHistoryState()
+      }
+    }
+    
+    const performRedo = () => {
+      if (commandHistory.redo()) {
+        renderEditor()
+        updateAllFloorPreviews()
+        updateHistoryState()
       }
     }
     
@@ -1293,7 +1602,12 @@ export default {
       floorsListContainer,
       renderFloorPreview,
       updateAllFloorPreviews,
-      addFloor
+      addFloor,
+      commandHistory,
+      canUndo,
+      canRedo,
+      performUndo,
+      performRedo
     }
   }
 }
@@ -1570,6 +1884,44 @@ export default {
 
 .zoom-btn:active {
   transform: scale(0.95);
+}
+
+.history-controls {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.history-btn {
+  width: 32px;
+  height: 28px;
+  border: 1px solid #555;
+  background-color: #333;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+  line-height: 1;
+}
+
+.history-btn:hover:not(:disabled) {
+  background-color: #444;
+  border-color: #777;
+}
+
+.history-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.history-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .zoom-display {

@@ -166,6 +166,24 @@ export class Maze {
     }
   }
 
+  // Helper methods for undo/redo
+  getFloorCell(x, y, floor = 0) {
+    if (floor < 0 || floor >= this.numFloors) return 1;
+    const floorInfo = this.floorData[floor];
+    if (!floorInfo || x < 0 || x >= floorInfo.width || y < 0 || y >= floorInfo.height) {
+      return 1;
+    }
+    return floorInfo.cells[y][x];
+  }
+
+  setFloorCell(x, y, floor = 0, value) {
+    if (floor < 0 || floor >= this.numFloors) return;
+    const floorInfo = this.floorData[floor];
+    if (floorInfo && x >= 0 && x < floorInfo.width && y >= 0 && y < floorInfo.height) {
+      floorInfo.cells[y][x] = value;
+    }
+  }
+
   addStairs(x, y, floor, targetFloor, targetX = x, targetY = y) {
     const key = `${x},${y},${floor}`;
     this.stairs.set(key, {
