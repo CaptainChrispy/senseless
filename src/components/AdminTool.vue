@@ -1735,7 +1735,7 @@ export default {
   background-color: #3a3a3a;
   border: 2px solid #555;
   border-radius: 8px;
-  align-items: flex-start;
+  align-items: center;
   position: fixed;
   top: 70px;
   left: 50%;
