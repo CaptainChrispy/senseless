@@ -61,46 +61,51 @@
             {{ player.isMoving ? 'Moving...' : 'Turning...' }}
           </p>
           
-          <div class="fov-control">
-            <label for="fovSlider">FOV: {{ fovDegrees }}°</label>
-            <input 
-              id="fovSlider"
-              type="range" 
-              min="30" 
-              max="120" 
-              v-model.number="fovDegrees"
-              @input="updateFOV"
-              class="fov-slider"
-            />
-          </div>
-          
-          <div class="fov-control">
-            <label for="renderDistanceSlider">Render Distance: {{ renderDistance.toFixed(1) }}</label>
-            <input 
-              id="renderDistanceSlider"
-              type="range" 
-              min="2" 
-              max="15" 
-              step="0.5"
-              v-model.number="renderDistance"
-              @input="updateRenderDistance"
-              class="fov-slider"
-            />
-          </div>
-          
-          <div class="fov-control">
-            <label for="fogDistanceSlider">Fog Start Distance: {{ fogDistance.toFixed(1) }}</label>
-            <input 
-              id="fogDistanceSlider"
-              type="range" 
-              min="0.5" 
-              max="10" 
-              step="0.5"
-              v-model.number="fogDistance"
-              @input="updateFogDistance"
-              class="fov-slider"
-            />
-          </div>
+          <details class="settings-panel">
+            <summary>Settings</summary>
+            <div class="settings-content">
+              <div class="fov-control">
+                <label for="fovSlider">FOV: {{ fovDegrees }}°</label>
+                <input 
+                  id="fovSlider"
+                  type="range" 
+                  min="30" 
+                  max="120" 
+                  v-model.number="fovDegrees"
+                  @input="updateFOV"
+                  class="fov-slider"
+                />
+              </div>
+              
+              <div class="fov-control">
+                <label for="renderDistanceSlider">Render Distance: {{ renderDistance.toFixed(1) }}</label>
+                <input 
+                  id="renderDistanceSlider"
+                  type="range" 
+                  min="2" 
+                  max="15" 
+                  step="0.5"
+                  v-model.number="renderDistance"
+                  @input="updateRenderDistance"
+                  class="fov-slider"
+                />
+              </div>
+              
+              <div class="fov-control">
+                <label for="fogDistanceSlider">Fog Start Distance: {{ fogDistance.toFixed(1) }}</label>
+                <input 
+                  id="fogDistanceSlider"
+                  type="range" 
+                  min="0.5" 
+                  max="10" 
+                  step="0.5"
+                  v-model.number="fogDistance"
+                  @input="updateFogDistance"
+                  class="fov-slider"
+                />
+              </div>
+            </div>
+          </details>
           
           <div class="biome-control">
             <label for="biomeSelect">Biome:</label>
@@ -818,12 +823,40 @@ export default {
   margin: 5px 0;
 }
 
+.settings-panel {
+  margin: 15px 0;
+  border: 1px solid #444;
+  border-radius: 5px;
+  background-color: #2a2a2a;
+}
+
+.settings-panel summary {
+  padding: 10px;
+  cursor: pointer;
+  font-weight: bold;
+  color: #4CAF50;
+  user-select: none;
+  list-style: none;
+}
+
+.settings-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-panel summary:hover {
+  background-color: #333;
+}
+
+.settings-content {
+  padding: 0 10px 10px 10px;
+}
+
 .fov-control {
   margin: 15px 0;
   padding: 10px;
   border: 1px solid #444;
   border-radius: 5px;
-  background-color: #2a2a2a;
+  background-color: #222;
 }
 
 .fov-control label {
