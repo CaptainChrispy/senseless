@@ -199,15 +199,6 @@
         </div>
 
         <div class="toolbar-section">
-          <label class="toolbar-label">Floor</label>
-          <select v-model.number="currentFloor" class="toolbar-select">
-            <option v-for="f in numFloors" :key="f-1" :value="f-1">
-              Floor {{ f }}
-            </option>
-          </select>
-        </div>
-
-        <div class="toolbar-section">
           <label class="toolbar-label">Width</label>
           <input 
             v-model.number="mazeWidth" 
@@ -227,18 +218,6 @@
             min="5" 
             max="30"
             @change="resizeCurrentFloor"
-            class="toolbar-input"
-          />
-        </div>
-
-        <div class="toolbar-section">
-          <label class="toolbar-label">Floors</label>
-          <input 
-            v-model.number="numFloors" 
-            type="number" 
-            min="1" 
-            max="10"
-            @change="updateFloors"
             class="toolbar-input"
           />
         </div>
