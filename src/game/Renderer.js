@@ -927,17 +927,5 @@ export class MinimapRenderer {
     this.ctx.moveTo(playerScreenX, playerScreenY);
     this.ctx.lineTo(endX, endY);
     this.ctx.stroke();
-    
-    this.ctx.fillStyle = '#888888';
-    this.ctx.font = `${Math.max(8, this.scale * 0.3)}px monospace`;
-    this.ctx.textAlign = 'left';
-    this.ctx.fillText(`Player: (${Math.floor(player.x)}, ${Math.floor(player.y)})`, 5, 15);
-    
-    const directionNames = ['N', 'E', 'S', 'W'];
-    const directionIndex = Math.round(player.direction) % 4;
-    const isExact = player.direction === Math.round(player.direction);
-    const directionText = `Dir: ${directionNames[directionIndex]} ${isExact ? '✓' : '⚠ ' + player.direction.toFixed(3)}`;
-    this.ctx.fillStyle = isExact ? '#888888' : '#ff0000';
-    this.ctx.fillText(directionText, 5, 30);
   }
 }
