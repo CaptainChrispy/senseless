@@ -130,6 +130,9 @@
           <button @click="showAdminTool = !showAdminTool" class="admin-btn">
             {{ showAdminTool ? 'Hide' : 'Show' }} Admin Tool
           </button>
+          <button @click="resetPlayerToStart" class="admin-btn reset-btn">
+            Reset to Start
+          </button>
         </div>
       </div>
     </div>
@@ -357,6 +360,17 @@ export default {
       if (battleState.value.inBattle || !player.canAct()) return
       
       player.startTurnAround()
+    }
+    
+    const resetPlayerToStart = () => {
+      if (maze.value.startPosition) {
+        player.x = maze.value.startPosition.x + 0.5
+        player.y = maze.value.startPosition.y + 0.5
+        player.direction = maze.value.startPosition.direction || 0
+        player.floor = maze.value.startPosition.floor || 0
+        stepCount.value = 0
+        render()
+      }
     }
     
     const updateFOV = () => {
@@ -692,6 +706,7 @@ export default {
       turnLeft,
       turnRight,
       turnAround,
+      resetPlayerToStart,
       updateFOV,
       updateRenderDistance,
       updateFogDistance,
@@ -933,10 +948,20 @@ export default {
   cursor: pointer;
   font-family: inherit;
   width: 100%;
+  margin-bottom: 5px;
 }
 
 .admin-btn:hover {
   background-color: #555;
+}
+
+.admin-btn.reset-btn {
+  background-color: #2a5;
+  border-color: #3b6;
+}
+
+.admin-btn.reset-btn:hover {
+  background-color: #3b6;
 }
 
 .battle-modal {
