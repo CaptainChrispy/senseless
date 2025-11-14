@@ -310,7 +310,12 @@
               </div>
             </transition-group>
           </div>
-          <button @click="addFloor" class="add-floor-btn" title="Add Floor">+</button>
+          <button @click="addFloor" class="add-floor-btn" title="Add Floor">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M12 4a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5a1 1 0 0 1 1-1m9-2a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>
+            </svg>
+            Add Floor
+          </button>
         </div>
       </div>
       
@@ -2184,31 +2189,36 @@ export default {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
+  width: auto;
+  min-width: 120px;
+  height: 40px;
+  border-radius: 20px;
   border: 2px solid #4a7c59;
   background-color: #2a4a2a;
   color: #5a8c69;
-  font-size: 28px;
+  font-size: 14px;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   z-index: 2000;
-  line-height: 1;
-  padding: 0;
+  padding: 8px 16px;
+}
+
+.add-floor-btn svg {
+  flex-shrink: 0;
 }
 
 .add-floor-btn:hover {
   background-color: #3a6a3a;
   border-color: #5a8c69;
-  transform: translateX(-50%) scale(1.1);
+  transform: translateX(-50%) scale(1.05);
 }
 
 .add-floor-btn:active {
-  transform: translateX(-50%) scale(0.95);
+  transform: translateX(-50%) scale(0.98);
 }
 </style>
