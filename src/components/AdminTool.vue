@@ -264,6 +264,16 @@
               <path fill="currentColor" d="M21 14a1 1 0 0 0-1 1v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4a1 1 0 0 0-2 0v4a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-4a1 1 0 0 0-1-1m-9.71 1.71a1 1 0 0 0 .33.21a.94.94 0 0 0 .76 0a1 1 0 0 0 .33-.21l4-4a1 1 0 0 0-1.42-1.42L13 12.59V3a1 1 0 0 0-2 0v9.59l-2.29-2.3a1 1 0 1 0-1.42 1.42Z"/>
             </svg>
           </button>
+          <button @click="exportCode" class="toolbar-action-btn" title="Export Code">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M8 3a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2H3v2h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h2v-2H8v-5a2 2 0 0 0-2-2a2 2 0 0 0 2-2V5h2V3m6 0a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1v2h-1a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-2v-2h2v-5a2 2 0 0 1 2-2a2 2 0 0 1-2-2V5h-2V3z"/>
+            </svg>
+          </button>
+          <button @click="importCode" class="toolbar-action-btn" title="Import Code">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M12.89 3L14.85 3.4L11.11 21L9.15 20.6L12.89 3M19.59 12L16 8.41V5.58L22.42 12L16 18.41V15.58L19.59 12M1.58 12L8 5.58V8.41L4.41 12L8 15.58V18.41L1.58 12Z"/>
+            </svg>
+          </button>
         </div>
       </div>
       
@@ -322,6 +332,37 @@
       <div class="admin-footer">
         <button @click="applyChanges" class="apply-btn">Apply Changes</button>
         <button @click="$emit('close')" class="cancel-btn">Cancel</button>
+      </div>
+    </div>
+    
+    <!-- Code Modal -->
+    <div v-if="showCodeModal" class="code-modal-overlay" @click="showCodeModal = false">
+      <div class="code-modal" @click.stop>
+        <div class="code-modal-header">
+          <h3>{{ codeText ? 'Export Code' : 'Import Code' }}</h3>
+          <button @click="showCodeModal = false" class="code-modal-close">×</button>
+        </div>
+        <div class="code-modal-content">
+          <div v-if="codeText" class="code-export-section">
+            <p class="code-instructions">Copy this code and share it with others:</p>
+            <textarea 
+              v-model="codeText" 
+              readonly 
+              class="code-textarea"
+              @click="$event.target.select()"
+            ></textarea>
+            <button @click="copyCodeToClipboard" class="code-copy-btn">Copy to Clipboard</button>
+          </div>
+          <div v-else class="code-import-section">
+            <p class="code-instructions">Paste a maze code to import:</p>
+            <textarea 
+              v-model="codeInputText" 
+              class="code-textarea"
+              placeholder="Paste code here..."
+            ></textarea>
+            <button @click="applyCodeImport" class="code-import-btn" :disabled="!codeInputText.trim()">Import Maze</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -604,6 +645,10 @@ export default {
     const floorCanvases = ref([])
     const floorsListContainer = ref(null)
     const floorPreviewSize = 4
+    
+    const showCodeModal = ref(false)
+    const codeText = ref('')
+    const codeInputText = ref('')
     
     const zoomPercent = computed({
       get: () => Math.round(zoom.value * 100),
@@ -1365,6 +1410,47 @@ export default {
       reader.readAsText(file)
     }
     
+    const exportCode = () => {
+      const mazeData = currentMaze.value.toJSON()
+      const dataStr = JSON.stringify(mazeData)
+      // Convert to base64 for compact representation
+      const code = btoa(unescape(encodeURIComponent(dataStr)))
+      codeText.value = code
+      showCodeModal.value = true
+    }
+    
+    const importCode = () => {
+      codeInputText.value = ''
+      showCodeModal.value = true
+    }
+    
+    const applyCodeImport = () => {
+      try {
+        const dataStr = decodeURIComponent(escape(atob(codeInputText.value.trim())))
+        const mazeData = JSON.parse(dataStr)
+        const importedMaze = Maze.fromJSON(mazeData)
+        
+        currentMaze.value = importedMaze
+        mazeWidth.value = importedMaze.width
+        mazeHeight.value = importedMaze.height
+        
+        editorCanvas.value.width = importedMaze.width * cellSize
+        editorCanvas.value.height = importedMaze.height * cellSize
+        
+        renderEditor()
+        showCodeModal.value = false
+        codeInputText.value = ''
+      } catch (error) {
+        alert('Error importing code: Invalid code format')
+      }
+    }
+    
+    const copyCodeToClipboard = () => {
+      navigator.clipboard.writeText(codeText.value).then(() => {
+        alert('Code copied to clipboard!')
+      })
+    }
+    
     const applyChanges = () => {
       emit('maze-updated', currentMaze.value)
       emit('close')
@@ -1574,6 +1660,13 @@ export default {
       generateMaze,
       exportMaze,
       importMaze,
+      exportCode,
+      importCode,
+      applyCodeImport,
+      copyCodeToClipboard,
+      showCodeModal,
+      codeText,
+      codeInputText,
       applyChanges,
       zoom,
       panX,
@@ -2220,5 +2313,136 @@ export default {
 
 .add-floor-btn:active {
   transform: translateX(-50%) scale(0.98);
+}
+
+/* Code Modal */
+.code-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  animation: overlay-fade-in 0.2s ease-out;
+}
+
+.code-modal {
+  background: linear-gradient(135deg, #2a2a3a 0%, #1a1a2a 100%);
+  border: 2px solid rgba(100, 200, 255, 0.3);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: modal-appear 0.3s ease-out;
+}
+
+.code-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 2px solid rgba(100, 200, 255, 0.3);
+}
+
+.code-modal-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 20px;
+}
+
+.code-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.code-modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.code-modal-content {
+  padding: 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.code-instructions {
+  color: #ccc;
+  margin: 0 0 15px 0;
+  font-size: 14px;
+}
+
+.code-textarea {
+  width: 100%;
+  min-height: 200px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(100, 200, 255, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  padding: 15px;
+  resize: vertical;
+  margin-bottom: 15px;
+}
+
+.code-textarea:focus {
+  outline: none;
+  border-color: rgba(100, 200, 255, 0.6);
+  box-shadow: 0 0 10px rgba(100, 200, 255, 0.2);
+}
+
+.code-copy-btn,
+.code-import-btn {
+  width: 100%;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #4a8cff 0%, #3a6cff 100%);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.code-copy-btn:hover,
+.code-import-btn:hover {
+  background: linear-gradient(135deg, #5a9cff 0%, #4a7cff 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 140, 255, 0.4);
+}
+
+.code-copy-btn:active,
+.code-import-btn:active {
+  transform: translateY(0);
+}
+
+.code-import-btn:disabled {
+  background: #555;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.code-import-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 </style>
