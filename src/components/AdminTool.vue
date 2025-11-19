@@ -537,6 +537,114 @@ class ResizeFloorCommand extends Command {
   }
 }
 
+class AddDoorCommand extends Command {
+  constructor(maze, x, y, floor, edge, options) {
+    super()
+    this.maze = maze
+    this.x = x
+    this.y = y
+    this.floor = floor
+    this.edge = edge
+    this.options = options
+    this.hadDoor = false
+    this.oldDoorData = null
+    
+    const edgeNames = ['North', 'East', 'South', 'West']
+    const lockStatus = options.locked ? 'Locked' : 'Unlocked'
+    this.description = `Add ${lockStatus} Door at (${x}, ${y}) ${edgeNames[edge]}`
+  }
+  
+  execute() {
+    const key = `${this.x},${this.y},${this.floor},${this.edge}`
+    const doorData = this.maze.doorManager.doors.get(key)
+    
+    if (doorData) {
+      this.hadDoor = true
+      this.oldDoorData = doorData
+    }
+    
+    this.maze.addDoor(this.x, this.y, this.floor, this.edge, this.options)
+  }
+  
+  undo() {
+    const key = `${this.x},${this.y},${this.floor},${this.edge}`
+    
+    if (this.hadDoor && this.oldDoorData) {
+      this.maze.doorManager.doors.set(key, this.oldDoorData)
+    } else {
+      this.maze.doorManager.doors.delete(key)
+    }
+  }
+}
+
+class RemoveDoorCommand extends Command {
+  constructor(maze, x, y, floor, edge) {
+    super()
+    this.maze = maze
+    this.x = x
+    this.y = y
+    this.floor = floor
+    this.edge = edge
+    this.doorData = null
+    
+    const edgeNames = ['North', 'East', 'South', 'West']
+    this.description = `Remove Door at (${x}, ${y}) ${edgeNames[edge]}`
+  }
+  
+  execute() {
+    const key = `${this.x},${this.y},${this.floor},${this.edge}`
+    this.doorData = this.maze.doorManager.doors.get(key)
+    this.maze.removeDoor(this.x, this.y, this.floor, this.edge)
+  }
+  
+  undo() {
+    if (this.doorData) {
+      const key = `${this.x},${this.y},${this.floor},${this.edge}`
+      this.maze.doorManager.doors.set(key, this.doorData)
+    }
+  }
+}
+
+class BatchDoorCommand extends Command {
+  constructor(maze, doors) {
+    super()
+    this.maze = maze
+    this.doors = doors
+    
+    const isRemoving = doors.length > 0 && doors[0].action === 'remove'
+    const action = isRemoving ? 'Remove' : 'Add'
+    this.description = `${action} ${doors.length} door${doors.length !== 1 ? 's' : ''}`
+  }
+  
+  execute() {
+    this.doors.forEach(door => {
+      if (door.action === 'add') {
+        this.maze.addDoor(door.x, door.y, door.floor, door.edge, door.options)
+      } else if (door.action === 'remove') {
+        this.maze.removeDoor(door.x, door.y, door.floor, door.edge)
+      }
+    })
+  }
+  
+  undo() {
+    this.doors.forEach(door => {
+      const key = `${door.x},${door.y},${door.floor},${door.edge}`
+      
+      if (door.action === 'add') {
+        if (door.hadDoor && door.oldDoorData) {
+          this.maze.doorManager.doors.set(key, door.oldDoorData)
+        } else {
+          this.maze.doorManager.doors.delete(key)
+        }
+      } else if (door.action === 'remove') {
+        if (door.oldDoorData) {
+          this.maze.doorManager.doors.set(key, door.oldDoorData)
+        }
+      }
+    })
+  }
+}
+
 class CommandHistory {
   constructor(maxSize = 50) {
     this.undoStack = []
@@ -618,6 +726,7 @@ export default {
     // Command history for undo/redo
     const commandHistory = new CommandHistory(50)
     const batchedCells = []
+    const batchedDoors = []
     let isBatchingCommands = false
     const canUndo = ref(false)
     const canRedo = ref(false)
@@ -981,14 +1090,72 @@ export default {
           didPaint = true
           break
         case 'door':
-          currentMaze.value.addDoor(x, y, floor, effectiveEdge, {
-            locked: doorLocked.value,
-            showOnMinimap: true
-          })
+          if (isBatchingCommands) {
+            const key = `${x},${y},${floor},${effectiveEdge}`
+            
+            // Check if we already placed a door here during this drag
+            const alreadyBatched = batchedDoors.some(d => 
+              d.x === x && d.y === y && d.floor === floor && d.edge === effectiveEdge
+            )
+            
+            if (!alreadyBatched) {
+              const oldDoorData = currentMaze.value.doorManager.doors.get(key)
+              const hadDoor = !!oldDoorData
+              
+              currentMaze.value.addDoor(x, y, floor, effectiveEdge, {
+                locked: doorLocked.value,
+                showOnMinimap: true
+              })
+              
+              batchedDoors.push({
+                action: 'add',
+                x, y, floor,
+                edge: effectiveEdge,
+                options: { locked: doorLocked.value, showOnMinimap: true },
+                hadDoor,
+                oldDoorData
+              })
+            }
+          } else {
+            const addDoorCommand = new AddDoorCommand(
+              currentMaze.value, 
+              x, y, floor, 
+              effectiveEdge, 
+              { locked: doorLocked.value, showOnMinimap: true }
+            )
+            executeCommand(addDoorCommand)
+          }
           didPaint = true
           break
         case 'removeDoor':
-          currentMaze.value.removeDoor(x, y, floor, effectiveEdge)
+          if (isBatchingCommands) {
+            const key = `${x},${y},${floor},${effectiveEdge}`
+            
+            // Check if we already removed a door here during this drag
+            const alreadyBatched = batchedDoors.some(d => 
+              d.x === x && d.y === y && d.floor === floor && d.edge === effectiveEdge
+            )
+            
+            if (!alreadyBatched) {
+              const oldDoorData = currentMaze.value.doorManager.doors.get(key)
+              
+              currentMaze.value.removeDoor(x, y, floor, effectiveEdge)
+              
+              batchedDoors.push({
+                action: 'remove',
+                x, y, floor,
+                edge: effectiveEdge,
+                oldDoorData
+              })
+            }
+          } else {
+            const removeDoorCommand = new RemoveDoorCommand(
+              currentMaze.value, 
+              x, y, floor, 
+              effectiveEdge
+            )
+            executeCommand(removeDoorCommand)
+          }
           didPaint = true
           break
       }
@@ -1122,6 +1289,7 @@ export default {
       // Start batching commands for drag operations
       isBatchingCommands = true
       batchedCells.length = 0
+      batchedDoors.length = 0
       
       const cell = getCellFromMouseEvent(event)
       if (cell.valid && paintCell(cell.x, cell.y, cell.floor, cell.closestEdge)) {
@@ -1251,6 +1419,14 @@ export default {
         executeCommand(command)
         batchedCells.length = 0
       }
+      
+      // Create batch door command if we have doors
+      if (isBatchingCommands && batchedDoors.length > 0) {
+        const command = new BatchDoorCommand(currentMaze.value, [...batchedDoors])
+        executeCommand(command)
+        batchedDoors.length = 0
+      }
+      
       isBatchingCommands = false
       
       isDrawing = false
@@ -1587,6 +1763,7 @@ export default {
         renderEditor()
         updateAllFloorPreviews()
         updateHistoryState()
+        emit('maze-updated', currentMaze.value)
       }
     }
     
@@ -1595,6 +1772,7 @@ export default {
         renderEditor()
         updateAllFloorPreviews()
         updateHistoryState()
+        emit('maze-updated', currentMaze.value)
       }
     }
     
