@@ -197,7 +197,7 @@
             v-model.number="mazeWidth" 
             type="number" 
             min="5" 
-            max="30"
+            max="100"
             @change="resizeMaze"
             class="toolbar-input"
           />
@@ -209,7 +209,7 @@
             v-model.number="mazeHeight" 
             type="number" 
             min="5" 
-            max="30"
+            max="100"
             @change="resizeCurrentFloor"
             class="toolbar-input"
           />
