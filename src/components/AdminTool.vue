@@ -186,13 +186,6 @@
         </div>
 
         <div v-if="editMode === 'door' || editMode === 'removeDoor'" class="toolbar-section">
-          <label class="toolbar-label">Door</label>
-          <select v-model.number="doorDirection" class="toolbar-select">
-            <option :value="0">North</option>
-            <option :value="1">East</option>
-            <option :value="2">South</option>
-            <option :value="3">West</option>
-          </select>
           <label v-if="editMode === 'door'" class="toolbar-checkbox">
             <input v-model="doorLocked" type="checkbox" /> Locked
           </label>
@@ -718,7 +711,6 @@ export default {
     const selectedBiome = ref(props.maze.biome || 'DUNGEON')
     const biomeOptions = ref(getBiomeNames())
     const editMode = ref('wall')
-    const doorDirection = ref(0) // 0=North, 1=East, 2=South, 3=West
     const doorLocked = ref(false)
     const cellSize = 20
     const currentMaze = ref(new Maze(props.maze.width, props.maze.height, props.maze.biome || 'DUNGEON', props.maze.numFloors || 1))
@@ -1001,7 +993,7 @@ export default {
             ctx.lineWidth = 4
             ctx.beginPath()
             
-            const previewEdge = previewCell.value.edge !== undefined ? previewCell.value.edge : doorDirection.value
+            const previewEdge = previewCell.value.edge !== undefined ? previewCell.value.edge : 0
             
             switch(previewEdge) {
               case 0: // North edge
@@ -1047,7 +1039,7 @@ export default {
       
       let didPaint = false
       
-      const effectiveEdge = edgeOverride !== null ? edgeOverride : doorDirection.value
+      const effectiveEdge = edgeOverride !== null ? edgeOverride : 0
       
       const oldValue = currentMaze.value.getFloorCell(x, y, floor)
       let newValue = oldValue
@@ -1093,7 +1085,6 @@ export default {
           if (isBatchingCommands) {
             const key = `${x},${y},${floor},${effectiveEdge}`
             
-            // Check if we already placed a door here during this drag
             const alreadyBatched = batchedDoors.some(d => 
               d.x === x && d.y === y && d.floor === floor && d.edge === effectiveEdge
             )
@@ -1420,7 +1411,6 @@ export default {
         batchedCells.length = 0
       }
       
-      // Create batch door command if we have doors
       if (isBatchingCommands && batchedDoors.length > 0) {
         const command = new BatchDoorCommand(currentMaze.value, [...batchedDoors])
         executeCommand(command)
@@ -1827,7 +1817,6 @@ export default {
       handleContainerMouseDown,
       handleContainerMouseMove,
       handleContainerMouseUp,
-      doorDirection,
       doorLocked,
       resizeMaze,
       resizeCurrentFloor,
