@@ -1167,10 +1167,6 @@ export default {
         lastPaintedCell = cellKey
       }
       
-      if (didPaint) {
-        renderFloorPreview(currentFloor.value)
-      }
-      
       return didPaint
     }
     
@@ -1355,12 +1351,16 @@ export default {
       if (needsRender) {
         // Debounce render with requestAnimationFrame
         if (rafId) cancelAnimationFrame(rafId)
-        rafId = requestAnimationFrame(() => renderEditor())
+        rafId = requestAnimationFrame(() => {
+          renderEditor()
+          renderFloorPreview(currentFloor.value)
+        })
       }
     }
     
     const handleCanvasMouseUp = () => {
       isPanning.value = false
+      const wasDrawing = isDrawing
       isDrawing = false
       lastPaintedCell = null
       lastPaintedCoords = null
@@ -1368,6 +1368,11 @@ export default {
       if (rafId) {
         cancelAnimationFrame(rafId)
         rafId = null
+      }
+      // Final render and preview update after drawing
+      if (wasDrawing) {
+        renderEditor()
+        renderFloorPreview(currentFloor.value)
       }
     }
     
